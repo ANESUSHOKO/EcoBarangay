@@ -16,71 +16,7 @@ import {
   GovernmentPage,
   AppNotification
 } from '../types';
-import {
-  INITIAL_REGIONS,
-  INITIAL_PROVINCES,
-  INITIAL_CITIES,
-  INITIAL_BARANGAYS
-} from '../server/initialData';
-
-function calculateHaversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 100) / 100;
-}
-
-export async function clientDetectNearestBarangay(lat: number, lng: number) {
-  let reverseGeocodedAddress = '';
-  try {
-    const nomRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      }
-    );
-    if (nomRes.ok) {
-      const nomData = await nomRes.json();
-      if (nomData && nomData.display_name) {
-        reverseGeocodedAddress = nomData.display_name;
-      }
-    }
-  } catch (e) {
-    // Reverse geocoding optional
-  }
-
-  const barangays = INITIAL_BARANGAYS;
-  let nearest: Barangay | null = null;
-  let minDistance = Infinity;
-
-  for (const b of barangays) {
-    const dist = calculateHaversineDistanceKm(lat, lng, b.lat, b.lng);
-    if (dist < minDistance) {
-      minDistance = dist;
-      nearest = b;
-    }
-  }
-
-  if (!nearest) {
-    throw new Error('No barangays found in directory');
-  }
-
-  return {
-    success: true,
-    nearestBarangay: { ...nearest, distanceKm: minDistance },
-    distanceKm: minDistance,
-    reverseGeocodedAddress,
-  };
-}
+import { clientStore } from './clientStore';
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -91,7 +27,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status} Not Found` }));
     throw new Error(err.error || `Error ${res.status}`);
   }
 
@@ -100,20 +36,21 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Stats
-  getStatsSummary: () => fetchJSON<{
-    registeredResidents: number;
-    participatingBarangays: number;
-    wasteRecycledKg: number;
-    cleanupActivities: number;
-    reportsResolved: number;
-  }>('/api/stats/summary'),
+  getStatsSummary: () =>
+    fetchJSON<{
+      registeredResidents: number;
+      participatingBarangays: number;
+      wasteRecycledKg: number;
+      cleanupActivities: number;
+      reportsResolved: number;
+    }>('/api/stats/summary').catch(() => clientStore.getStatsSummary()),
 
   // Auth
   login: (email: string) =>
     fetchJSON<{ success: boolean; user: User }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email }),
-    }),
+    }).catch(() => clientStore.login(email)),
 
   register: (data: {
     email: string;
@@ -130,13 +67,13 @@ export const api = {
     fetchJSON<{ success: boolean; user: User }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.register(data)),
 
   updateProfile: (id: string, updates: Partial<User>) =>
     fetchJSON<{ success: boolean; user: User }>(`/api/auth/user/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
-    }),
+    }).catch(() => clientStore.updateProfile(id, updates)),
 
   registerHousehold: (id: string, householdData: {
     householdHeadName: string;
@@ -147,30 +84,27 @@ export const api = {
     fetchJSON<{ success: boolean; user: User }>(`/api/auth/user/${id}/household`, {
       method: 'POST',
       body: JSON.stringify(householdData),
-    }),
+    }).catch(() => clientStore.registerHousehold(id, householdData)),
 
-  getUserProfile: (id: string) => fetchJSON<User>(`/api/auth/user/${id}`),
+  getUserProfile: (id: string) =>
+    fetchJSON<User>(`/api/auth/user/${id}`).catch(() => clientStore.getUserProfile(id)),
 
   // Locations
-  getRegions: () => fetchJSON<Region[]>('/api/locations/regions').catch(() => INITIAL_REGIONS),
+  getRegions: () =>
+    fetchJSON<Region[]>('/api/locations/regions').catch(() => clientStore.getRegions()),
 
   getProvinces: (regionCode?: string) =>
-    fetchJSON<Province[]>(`/api/locations/provinces${regionCode ? `?regionCode=${regionCode}` : ''}`).catch(() => {
-      let list = INITIAL_PROVINCES;
-      if (regionCode) list = list.filter(p => p.regionCode === regionCode);
-      return list;
-    }),
+    fetchJSON<Province[]>(`/api/locations/provinces${regionCode ? `?regionCode=${regionCode}` : ''}`).catch(() =>
+      clientStore.getProvinces(regionCode)
+    ),
 
   getCities: (provinceCode?: string, regionCode?: string) => {
     const params = new URLSearchParams();
     if (provinceCode) params.append('provinceCode', provinceCode);
     if (regionCode) params.append('regionCode', regionCode);
-    return fetchJSON<City[]>(`/api/locations/cities?${params.toString()}`).catch(() => {
-      let list = INITIAL_CITIES;
-      if (provinceCode) list = list.filter(c => c.provinceCode === provinceCode);
-      if (regionCode) list = list.filter(c => c.regionCode === regionCode);
-      return list;
-    });
+    return fetchJSON<City[]>(`/api/locations/cities?${params.toString()}`).catch(() =>
+      clientStore.getCities(provinceCode, regionCode)
+    );
   },
 
   getBarangays: (filters?: { cityCode?: string; provinceCode?: string; regionCode?: string; search?: string }) => {
@@ -179,22 +113,9 @@ export const api = {
     if (filters?.provinceCode) params.append('provinceCode', filters.provinceCode);
     if (filters?.regionCode) params.append('regionCode', filters.regionCode);
     if (filters?.search) params.append('search', filters.search);
-    return fetchJSON<Barangay[]>(`/api/locations/barangays?${params.toString()}`).catch(() => {
-      let list = INITIAL_BARANGAYS;
-      if (filters?.cityCode) list = list.filter(b => b.cityCode === filters.cityCode);
-      if (filters?.provinceCode) list = list.filter(b => b.provinceCode === filters.provinceCode);
-      if (filters?.regionCode) list = list.filter(b => b.regionCode === filters.regionCode);
-      if (filters?.search) {
-        const q = filters.search.toLowerCase();
-        list = list.filter(
-          b =>
-            b.name.toLowerCase().includes(q) ||
-            b.cityName.toLowerCase().includes(q) ||
-            b.provinceName.toLowerCase().includes(q)
-        );
-      }
-      return list;
-    });
+    return fetchJSON<Barangay[]>(`/api/locations/barangays?${params.toString()}`).catch(() =>
+      clientStore.getBarangays(filters)
+    );
   },
 
   detectNearestBarangay: async (lat: number, lng: number) => {
@@ -209,8 +130,7 @@ export const api = {
         body: JSON.stringify({ lat, lng }),
       });
     } catch (err) {
-      console.warn('Backend API detect-nearest unreachable, executing client-side detection fallback:', err);
-      return clientDetectNearestBarangay(lat, lng);
+      return clientStore.detectNearestBarangay(lat, lng);
     }
   },
 
@@ -222,7 +142,9 @@ export const api = {
     if (filters?.cityCode) params.append('cityCode', filters.cityCode);
     if (filters?.tier) params.append('tier', filters.tier);
     if (filters?.search) params.append('search', filters.search);
-    return fetchJSON<Barangay[]>(`/api/rankings?${params.toString()}`);
+    return fetchJSON<Barangay[]>(`/api/rankings?${params.toString()}`).catch(() =>
+      clientStore.getRankings(filters)
+    );
   },
 
   // Facilities
@@ -232,79 +154,89 @@ export const api = {
     if (filters?.category) params.append('category', filters.category);
     if (filters?.userLat) params.append('userLat', filters.userLat.toString());
     if (filters?.userLng) params.append('userLng', filters.userLng.toString());
-    return fetchJSON<Facility[]>(`/api/facilities?${params.toString()}`);
+    return fetchJSON<Facility[]>(`/api/facilities?${params.toString()}`).catch(() =>
+      clientStore.getFacilities(filters)
+    );
   },
 
   createFacility: (data: Omit<Facility, 'id'>) =>
     fetchJSON<Facility>('/api/facilities', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.createFacility(data)),
 
   // Reports
   getReports: (barangayId?: string, reporterId?: string) => {
     const params = new URLSearchParams();
     if (barangayId) params.append('barangayId', barangayId);
     if (reporterId) params.append('reporterId', reporterId);
-    return fetchJSON<EnvironmentalReport[]>(`/api/reports?${params.toString()}`);
+    return fetchJSON<EnvironmentalReport[]>(`/api/reports?${params.toString()}`).catch(() =>
+      clientStore.getReports(barangayId, reporterId)
+    );
   },
 
   createReport: (data: Omit<EnvironmentalReport, 'id' | 'status' | 'createdAt'>) =>
     fetchJSON<EnvironmentalReport>('/api/reports', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.createReport(data)),
 
   updateReportStatus: (id: string, status: string, notes?: string) =>
     fetchJSON<EnvironmentalReport>(`/api/reports/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status, notes }),
-    }),
+    }).catch(() => clientStore.updateReportStatus(id, status, notes)),
 
   // Events
   getEvents: (barangayId?: string) =>
-    fetchJSON<Event[]>(`/api/events${barangayId ? `?barangayId=${barangayId}` : ''}`),
+    fetchJSON<Event[]>(`/api/events${barangayId ? `?barangayId=${barangayId}` : ''}`).catch(() =>
+      clientStore.getEvents(barangayId)
+    ),
 
   createEvent: (data: Omit<Event, 'id' | 'registeredUserIds'>) =>
     fetchJSON<Event>('/api/events', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.createEvent(data)),
 
   joinEvent: (eventId: string, userId: string) =>
     fetchJSON<Event>(`/api/events/${eventId}/join`, {
       method: 'POST',
       body: JSON.stringify({ userId }),
-    }),
+    }).catch(() => clientStore.joinEvent(eventId, userId)),
 
   // Challenges
-  getChallenges: () => fetchJSON<Challenge[]>('/api/challenges'),
+  getChallenges: () => fetchJSON<Challenge[]>('/api/challenges').catch(() => clientStore.getChallenges()),
 
   joinChallenge: (challengeId: string, userId: string) =>
     fetchJSON<Challenge>(`/api/challenges/${challengeId}/join`, {
       method: 'POST',
       body: JSON.stringify({ userId }),
-    }),
+    }).catch(() => clientStore.joinChallenge(challengeId, userId)),
 
   completeChallenge: (challengeId: string, userId: string) =>
     fetchJSON<Challenge>(`/api/challenges/${challengeId}/complete`, {
       method: 'POST',
       body: JSON.stringify({ userId }),
-    }),
+    }).catch(() => clientStore.completeChallenge(challengeId, userId)),
 
   // Schedules
   getSchedules: (barangayId?: string) =>
-    fetchJSON<GarbageSchedule[]>(`/api/schedules${barangayId ? `?barangayId=${barangayId}` : ''}`),
+    fetchJSON<GarbageSchedule[]>(`/api/schedules${barangayId ? `?barangayId=${barangayId}` : ''}`).catch(() =>
+      clientStore.getSchedules(barangayId)
+    ),
 
   createSchedule: (data: Omit<GarbageSchedule, 'id'>) =>
     fetchJSON<GarbageSchedule>('/api/schedules', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.createSchedule(data)),
 
   // Global Search
   globalSearch: (q: string) =>
-    fetchJSON<GlobalSearchResults>(`/api/search?q=${encodeURIComponent(q)}`),
+    fetchJSON<GlobalSearchResults>(`/api/search?q=${encodeURIComponent(q)}`).catch(() =>
+      clientStore.globalSearch(q)
+    ),
 
   // Social Feed
   getFeedPosts: (filters?: {
@@ -324,7 +256,9 @@ export const api = {
     if (filters?.followingUserId) params.append('followingUserId', filters.followingUserId);
     if (filters?.isGovernmentOnly) params.append('isGovernmentOnly', 'true');
     if (filters?.scopeLevel) params.append('scopeLevel', filters.scopeLevel);
-    return fetchJSON<FeedPost[]>(`/api/feed?${params.toString()}`);
+    return fetchJSON<FeedPost[]>(`/api/feed?${params.toString()}`).catch(() =>
+      clientStore.getFeedPosts(filters)
+    );
   },
 
   // Government Pages & Follow System
@@ -332,20 +266,22 @@ export const api = {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
     if (regionCode) params.append('regionCode', regionCode);
-    return fetchJSON<GovernmentPage[]>(`/api/government-pages?${params.toString()}`);
+    return fetchJSON<GovernmentPage[]>(`/api/government-pages?${params.toString()}`).catch(() =>
+      clientStore.getGovernmentPages(category, regionCode)
+    );
   },
 
   followUser: (userId: string, targetUserId: string) =>
     fetchJSON<{ user: User; isFollowing: boolean }>('/api/follow/user', {
       method: 'POST',
       body: JSON.stringify({ userId, targetUserId }),
-    }),
+    }).catch(() => clientStore.followUser(userId, targetUserId)),
 
   followPage: (userId: string, targetPageId: string) =>
     fetchJSON<{ user: User; page: GovernmentPage; isFollowing: boolean }>('/api/follow/page', {
       method: 'POST',
       body: JSON.stringify({ userId, targetPageId }),
-    }),
+    }).catch(() => clientStore.followPage(userId, targetPageId)),
 
   createFeedPost: (data: {
     authorId: string;
@@ -362,67 +298,74 @@ export const api = {
     fetchJSON<FeedPost>('/api/feed', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.createFeedPost(data)),
 
   likeFeedPost: (postId: string, userId: string) =>
     fetchJSON<FeedPost>(`/api/feed/${postId}/like`, {
       method: 'POST',
       body: JSON.stringify({ userId }),
-    }),
+    }).catch(() => clientStore.likeFeedPost(postId, userId)),
 
   addFeedComment: (postId: string, data: { authorId: string; authorName: string; authorAvatar?: string; content: string }) =>
     fetchJSON<FeedPost>(`/api/feed/${postId}/comment`, {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.addFeedComment(postId, data)),
 
   shareFeedPost: (postId: string) =>
     fetchJSON<FeedPost>(`/api/feed/${postId}/share`, {
       method: 'POST',
-    }),
+    }).catch(() => clientStore.shareFeedPost(postId)),
 
   // Log Waste
   logWaste: (userId: string, kg: number, wasteType: string, photoUrl?: string, autoPostToFeed?: boolean) =>
     fetchJSON<{ success: boolean; user: User }>('/api/waste/log', {
       method: 'POST',
       body: JSON.stringify({ userId, kg, wasteType, photoUrl, autoPostToFeed }),
-    }),
+    }).catch(() => clientStore.logWaste(userId, kg, wasteType, photoUrl, autoPostToFeed)),
 
   // Activity Logs
   getActivityLogs: (userId?: string) =>
-    fetchJSON<UserActivityLog[]>(`/api/activity-logs${userId ? `?userId=${userId}` : ''}`),
+    fetchJSON<UserActivityLog[]>(`/api/activity-logs${userId ? `?userId=${userId}` : ''}`).catch(() =>
+      clientStore.getActivityLogs(userId)
+    ),
 
   // Announcements
   getAnnouncements: (barangayId?: string) =>
-    fetchJSON<Announcement[]>(`/api/announcements${barangayId ? `?barangayId=${barangayId}` : ''}`),
+    fetchJSON<Announcement[]>(`/api/announcements${barangayId ? `?barangayId=${barangayId}` : ''}`).catch(() =>
+      clientStore.getAnnouncements(barangayId)
+    ),
 
   createAnnouncement: (data: Omit<Announcement, 'id' | 'createdAt'>) =>
     fetchJSON<Announcement>('/api/announcements', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.createAnnouncement(data)),
 
   // Notifications
   getNotifications: (barangayId?: string) =>
-    fetchJSON<AppNotification[]>(`/api/notifications${barangayId ? `?barangayId=${barangayId}` : ''}`),
+    fetchJSON<AppNotification[]>(`/api/notifications${barangayId ? `?barangayId=${barangayId}` : ''}`).catch(() =>
+      clientStore.getNotifications(barangayId)
+    ),
 
   markNotificationRead: (id: string) =>
     fetchJSON<AppNotification>(`/api/notifications/${id}/read`, {
       method: 'POST',
-    }),
+    }).catch(() => clientStore.markNotificationRead(id)),
 
   markAllNotificationsRead: (barangayId?: string) =>
     fetchJSON<{ success: boolean }>('/api/notifications/read-all', {
       method: 'POST',
       body: JSON.stringify({ barangayId }),
-    }),
+    }).catch(() => clientStore.markAllNotificationsRead(barangayId)),
 
   createNotification: (data: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) =>
     fetchJSON<AppNotification>('/api/notifications', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).catch(() => clientStore.createNotification(data)),
 
   // Admin
-  getAllAdminUsers: () => fetchJSON<User[]>('/api/admin/users'),
+  getAllAdminUsers: () =>
+    fetchJSON<User[]>('/api/admin/users').catch(() => clientStore.getAllAdminUsers()),
 };
