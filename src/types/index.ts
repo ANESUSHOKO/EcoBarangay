@@ -17,6 +17,7 @@ export interface User {
   challengesCompleted: number;
   cleanupActivitiesCount: number;
   avatarUrl?: string;
+  photoUrl?: string;
   verifiedOfficial?: boolean;
   followingUserIds?: string[];
   followingPageIds?: string[];

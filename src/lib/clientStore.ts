@@ -155,6 +155,7 @@ class ClientStore {
     barangayId: string;
     phone?: string;
     avatarUrl?: string;
+    photoUrl?: string;
     householdHeadName?: string;
     householdMembersCount?: number;
     householdAddress?: string;
@@ -172,7 +173,8 @@ class ClientStore {
       province: brgy.provinceName,
       region: brgy.regionName,
       phone: data.phone,
-      avatarUrl: data.avatarUrl,
+      avatarUrl: data.avatarUrl || data.photoUrl,
+      photoUrl: data.photoUrl || data.avatarUrl,
       householdHeadName: data.householdHeadName,
       householdMembersCount: data.householdMembersCount,
       householdAddress: data.householdAddress,

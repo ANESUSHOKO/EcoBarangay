@@ -121,6 +121,7 @@ export const api = {
     barangayId: string;
     phone?: string;
     avatarUrl?: string;
+    photoUrl?: string;
     householdHeadName?: string;
     householdMembersCount?: number;
     householdAddress?: string;

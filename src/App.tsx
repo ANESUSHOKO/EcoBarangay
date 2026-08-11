@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './lib/api';
 import { User, Barangay, Language } from './types';
-import { Navbar, LocationSelectorModal, SegregationGuideModal, MobileBottomNav } from './components';
+import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav } from './components';
 import {
   HomePage,
   AuthPage,
@@ -25,6 +25,7 @@ export function App() {
 
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
 
   // Initial load
   useEffect(() => {
@@ -93,6 +94,7 @@ export function App() {
         setActiveTab={setActiveTab}
         onOpenLocationModal={() => setIsLocationModalOpen(true)}
         onOpenGuideModal={() => setIsGuideModalOpen(true)}
+        onOpenProfileSettings={() => setIsProfileModalOpen(true)}
         onSwitchUser={handleSwitchUser}
         onLogout={() => setCurrentUser(null)}
         lang={lang}
@@ -251,6 +253,15 @@ export function App() {
         onClose={() => setIsGuideModalOpen(false)}
         onEarnPoints={handleEarnPointsFromGuide}
       />
+
+      {currentUser && (
+        <ProfileSettingsModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          currentUser={currentUser}
+          onUpdateUser={setCurrentUser}
+        />
+      )}
     </div>
   );
 }

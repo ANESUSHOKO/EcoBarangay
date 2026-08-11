@@ -1,13 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
+import { uploadProfilePicture } from '../../lib/storage';
 import { User, UserRole, Barangay } from '../../types';
-import { Leaf, UserCheck, Shield, Lock, Mail, User as UserIcon, Phone, MapPin, Sparkles, AlertCircle } from 'lucide-react';
+import {
+  Leaf,
+  UserCheck,
+  Shield,
+  Lock,
+  Mail,
+  User as UserIcon,
+  Phone,
+  MapPin,
+  Sparkles,
+  AlertCircle,
+  Camera,
+  Upload,
+  Link,
+  X,
+  Check,
+  Image as ImageIcon
+} from 'lucide-react';
 
 interface AuthPageProps {
   onSuccess: (user: User) => void;
   onOpenLocationModal: () => void;
   selectedBarangay: Barangay | null;
 }
+
+const PRESET_AVATARS = [
+  { label: 'Resident 1', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250' },
+  { label: 'Resident 2', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250' },
+  { label: 'Resident 3', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=250' },
+  { label: 'Community Lead', url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&q=80&w=250' },
+  { label: 'Youth Eco', url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80&w=250' },
+  { label: 'Volunteer', url: 'https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&q=80&w=250' },
+];
 
 export const AuthPage: React.FC<AuthPageProps> = ({
   onSuccess,
@@ -22,9 +49,36 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarInputType, setAvatarInputType] = useState<'preset' | 'upload' | 'url'>('preset');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image file is too large. Please select an image under 5MB.');
+      return;
+    }
+
+    setUploadingImage(true);
+    setError(null);
+
+    try {
+      const downloadUrl = await uploadProfilePicture(file);
+      setAvatarUrl(downloadUrl);
+    } catch (err: any) {
+      console.error('Image upload failed:', err);
+      setError('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +114,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         role,
         barangayId: selectedBarangay.id,
         phone,
+        avatarUrl: avatarUrl || undefined,
+        photoUrl: avatarUrl || undefined,
       });
 
       if (res.success && res.user) {
@@ -183,6 +239,126 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     🏛️ Barangay Official
                   </button>
                 </div>
+              </div>
+
+              {/* Profile Picture Option */}
+              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    Profile Picture <span className="text-[10px] font-normal text-slate-400">(Optional)</span>
+                  </label>
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setAvatarUrl('')}
+                      className="text-[11px] text-red-600 hover:text-red-700 font-bold flex items-center gap-0.5"
+                    >
+                      <X className="w-3 h-3" /> Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="relative shrink-0">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="Profile Preview"
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl bg-slate-200/80 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
+                        <UserIcon className="w-8 h-8" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    {/* Method Selector */}
+                    <div className="flex rounded-xl bg-slate-200/60 p-0.5 text-[11px] font-bold text-slate-600">
+                      <button
+                        type="button"
+                        onClick={() => setAvatarInputType('preset')}
+                        className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                          avatarInputType === 'preset' ? 'bg-white text-emerald-800 shadow-xs' : 'hover:text-slate-900'
+                        }`}
+                      >
+                        <Sparkles className="w-3 h-3 text-emerald-600" /> Presets
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAvatarInputType('upload')}
+                        className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                          avatarInputType === 'upload' ? 'bg-white text-emerald-800 shadow-xs' : 'hover:text-slate-900'
+                        }`}
+                      >
+                        <Upload className="w-3 h-3 text-emerald-600" /> Upload
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAvatarInputType('url')}
+                        className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                          avatarInputType === 'url' ? 'bg-white text-emerald-800 shadow-xs' : 'hover:text-slate-900'
+                        }`}
+                      >
+                        <Link className="w-3 h-3 text-emerald-600" /> URL
+                      </button>
+                    </div>
+
+                    {avatarInputType === 'upload' && (
+                      <div>
+                        <label className={`cursor-pointer block text-center px-3 py-1.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-800 transition-all shadow-xs ${uploadingImage ? 'opacity-60 pointer-events-none' : ''}`}>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageUpload}
+                            disabled={uploadingImage}
+                          />
+                          {uploadingImage ? 'Uploading to Firebase Storage...' : 'Choose Photo File'}
+                        </label>
+                      </div>
+                    )}
+
+                    {avatarInputType === 'url' && (
+                      <input
+                        type="url"
+                        placeholder="https://example.com/photo.jpg"
+                        value={avatarUrl}
+                        onChange={e => setAvatarUrl(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {avatarInputType === 'preset' && (
+                  <div className="pt-1">
+                    <p className="text-[10px] font-semibold text-slate-500 mb-1.5">Pick a community avatar:</p>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                      {PRESET_AVATARS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setAvatarUrl(preset.url)}
+                          className={`relative shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
+                            avatarUrl === preset.url
+                              ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-105'
+                              : 'border-transparent opacity-80 hover:opacity-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <img src={preset.url} alt={preset.label} className="w-10 h-10 object-cover" />
+                          {avatarUrl === preset.url && (
+                            <div className="absolute inset-0 bg-emerald-600/30 flex items-center justify-center">
+                              <Check className="w-4 h-4 text-white drop-shadow-xs" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

@@ -567,7 +567,7 @@ export function CommunityFeedPage({ currentUser, currentBarangay, lang, onNaviga
       const newPost = await api.createFeedPost({
         authorId: currentUser.id,
         authorName: currentUser.fullName,
-        authorAvatar: currentUser.avatarUrl,
+        authorAvatar: currentUser.photoUrl || currentUser.avatarUrl,
         authorRole: currentUser.role,
         barangayId: currentBarangay?.id || currentUser.barangayId || 'brgy-kapitolyo',
         barangayName: currentBarangay?.name || currentUser.barangayName || 'Kapitolyo',
@@ -612,7 +612,7 @@ export function CommunityFeedPage({ currentUser, currentBarangay, lang, onNaviga
       const updatedPost = await api.addFeedComment(postId, {
         authorId: currentUser.id,
         authorName: currentUser.fullName,
-        authorAvatar: currentUser.avatarUrl,
+        authorAvatar: currentUser.photoUrl || currentUser.avatarUrl,
         content: text.trim(),
       });
       setPosts(prev => prev.map(p => (p.id === postId ? updatedPost : p)));
@@ -737,8 +737,8 @@ export function CommunityFeedPage({ currentUser, currentBarangay, lang, onNaviga
         <form onSubmit={handleCreatePost}>
           <div className="flex gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0 overflow-hidden">
-              {currentUser?.avatarUrl ? (
-                <img src={currentUser.avatarUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+              {(currentUser?.photoUrl || currentUser?.avatarUrl) ? (
+                <img src={currentUser.photoUrl || currentUser.avatarUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
               ) : (
                 <UserIcon className="w-5 h-5 text-emerald-700" />
               )}

@@ -99,7 +99,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                 <tr key={u.id} className="hover:bg-slate-50/80">
                   <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
                     <img
-                      src={u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                      src={u.photoUrl || u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
                       alt=""
                       className="w-7 h-7 rounded-full object-cover"
                     />

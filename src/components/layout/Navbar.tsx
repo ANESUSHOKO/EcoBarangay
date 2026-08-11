@@ -24,7 +24,10 @@ import {
   Trophy,
   Check,
   CheckCheck,
-  Info
+  Info,
+  Camera,
+  Settings,
+  User as UserIcon
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -34,6 +37,7 @@ interface NavbarProps {
   setActiveTab: (tab: string) => void;
   onOpenLocationModal: () => void;
   onOpenGuideModal: () => void;
+  onOpenProfileSettings?: () => void;
   onSwitchUser: (email: string) => void;
   onLogout: () => void;
   lang: Language;
@@ -48,6 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onOpenLocationModal,
   onOpenGuideModal,
+  onOpenProfileSettings,
   onSwitchUser,
   onLogout,
   lang,
@@ -575,7 +580,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="flex items-center space-x-2 p-1 rounded-2xl border border-slate-200 hover:border-emerald-400 bg-white transition-all shadow-2xs"
                 >
                   <img
-                    src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                    src={currentUser.photoUrl || currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
                     alt={currentUser.fullName}
                     className="w-8 h-8 rounded-xl object-cover ring-2 ring-emerald-500/20"
                   />
@@ -655,7 +660,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
                     </div>
 
-                    <div className="border-t border-slate-100 mt-2 pt-2">
+                    <div className="border-t border-slate-100 mt-2 pt-2 space-y-1">
+                      {onOpenProfileSettings && (
+                        <button
+                          onClick={() => {
+                            onOpenProfileSettings();
+                            setUserDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-800 rounded-xl flex items-center space-x-2 transition-colors"
+                        >
+                          <Settings className="w-4 h-4 text-emerald-600" />
+                          <span>Profile & Settings</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           onLogout();
