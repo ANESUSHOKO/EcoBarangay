@@ -20,6 +20,11 @@ export interface User {
   verifiedOfficial?: boolean;
   followingUserIds?: string[];
   followingPageIds?: string[];
+  householdHeadName?: string;
+  householdMembersCount?: number;
+  householdAddress?: string;
+  householdRegistered?: boolean;
+  householdSegregationType?: string;
 }
 
 export interface SustainabilityScore {

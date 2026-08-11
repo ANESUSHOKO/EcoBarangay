@@ -54,7 +54,18 @@ async function startServer() {
 
   // Auth: Register
   app.post('/api/auth/register', (req, res) => {
-    const { email, fullName, role, barangayId, phone } = req.body;
+    const {
+      email,
+      fullName,
+      role,
+      barangayId,
+      phone,
+      avatarUrl,
+      householdHeadName,
+      householdMembersCount,
+      householdAddress,
+      householdSegregationType,
+    } = req.body;
 
     if (!email || !fullName || !role || !barangayId) {
       return res.status(400).json({ error: 'Missing required registration fields' });
@@ -70,6 +81,8 @@ async function startServer() {
       return res.status(400).json({ error: 'Selected barangay not found.' });
     }
 
+    const isHouseholdRegistered = Boolean(householdHeadName && householdAddress);
+
     const newUser = dbStore.createUser({
       email,
       fullName,
@@ -80,10 +93,44 @@ async function startServer() {
       province: brgy.provinceName,
       region: brgy.regionName,
       phone,
+      avatarUrl: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
       verifiedOfficial: role === 'BARANGAY_OFFICIAL',
+      householdHeadName,
+      householdMembersCount: householdMembersCount ? Number(householdMembersCount) : undefined,
+      householdAddress,
+      householdSegregationType: householdSegregationType || '3-Bin Segregation System',
+      householdRegistered: isHouseholdRegistered,
     });
 
     res.status(201).json({ success: true, user: newUser });
+  });
+
+  // Auth: Update User Profile
+  app.put('/api/auth/user/:id', (req, res) => {
+    const userId = req.params.id;
+    const updates = req.body;
+    const updated = dbStore.updateUser(userId, updates);
+    if (!updated) return res.status(404).json({ error: 'User not found' });
+    res.json({ success: true, user: updated });
+  });
+
+  // Auth: Register Household & Award Points
+  app.post('/api/auth/user/:id/household', (req, res) => {
+    const userId = req.params.id;
+    const { householdHeadName, householdMembersCount, householdAddress, householdSegregationType } = req.body;
+    const user = dbStore.getUserById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const updated = dbStore.updateUser(userId, {
+      householdHeadName,
+      householdMembersCount: Number(householdMembersCount) || 1,
+      householdAddress,
+      householdSegregationType: householdSegregationType || '3-Bin Segregation System',
+      householdRegistered: true,
+      ecoPoints: (user.ecoPoints || 0) + 50, // Award 50 bonus Eco Points for household registration
+    });
+
+    res.json({ success: true, user: updated });
   });
 
   // Auth: Get User Profile

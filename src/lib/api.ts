@@ -56,10 +56,32 @@ export const api = {
     role: string;
     barangayId: string;
     phone?: string;
+    avatarUrl?: string;
+    householdHeadName?: string;
+    householdMembersCount?: number;
+    householdAddress?: string;
+    householdSegregationType?: string;
   }) =>
     fetchJSON<{ success: boolean; user: User }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  updateProfile: (id: string, updates: Partial<User>) =>
+    fetchJSON<{ success: boolean; user: User }>(`/api/auth/user/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }),
+
+  registerHousehold: (id: string, householdData: {
+    householdHeadName: string;
+    householdMembersCount: number;
+    householdAddress: string;
+    householdSegregationType: string;
+  }) =>
+    fetchJSON<{ success: boolean; user: User }>(`/api/auth/user/${id}/household`, {
+      method: 'POST',
+      body: JSON.stringify(householdData),
     }),
 
   getUserProfile: (id: string) => fetchJSON<User>(`/api/auth/user/${id}`),

@@ -34,6 +34,7 @@ import {
   INITIAL_GOVERNMENT_PAGES,
   INITIAL_NOTIFICATIONS
 } from './initialData';
+import { firestoreDb } from './firebaseAdmin';
 
 interface DBData {
   regions: Region[];
@@ -120,8 +121,56 @@ class DBStore {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
       fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
+
+      // Asynchronously mirror key collections to Firestore
+      if (firestoreDb) {
+        this.syncToFirestore().catch(err => {
+          console.error('Failed to sync to Firestore:', err);
+        });
+      }
     } catch (err) {
       console.error('Error saving DB file:', err);
+    }
+  }
+
+  private async syncToFirestore() {
+    if (!firestoreDb) return;
+    try {
+      const batch = firestoreDb.batch();
+
+      // Sync Users
+      for (const user of this.data.users) {
+        const ref = firestoreDb.collection('users').doc(user.id);
+        batch.set(ref, JSON.parse(JSON.stringify(user)), { merge: true });
+      }
+
+      // Sync Reports
+      for (const report of this.data.reports) {
+        const ref = firestoreDb.collection('reports').doc(report.id);
+        batch.set(ref, JSON.parse(JSON.stringify(report)), { merge: true });
+      }
+
+      // Sync Feed Posts
+      for (const post of this.data.feedPosts) {
+        const ref = firestoreDb.collection('feedPosts').doc(post.id);
+        batch.set(ref, JSON.parse(JSON.stringify(post)), { merge: true });
+      }
+
+      // Sync Events
+      for (const event of this.data.events) {
+        const ref = firestoreDb.collection('events').doc(event.id);
+        batch.set(ref, JSON.parse(JSON.stringify(event)), { merge: true });
+      }
+
+      // Sync Barangays
+      for (const brgy of this.data.barangays) {
+        const ref = firestoreDb.collection('barangays').doc(brgy.id);
+        batch.set(ref, JSON.parse(JSON.stringify(brgy)), { merge: true });
+      }
+
+      await batch.commit();
+    } catch (err) {
+      console.error('Firestore batch write error:', err);
     }
   }
 

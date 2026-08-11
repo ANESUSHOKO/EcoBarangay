@@ -27,12 +27,15 @@ export const LocationSelectorModal: React.FC<Props> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [detectingLocation, setDetectingLocation] = useState<boolean>(false);
-  const [detectedNearest, setDetectedNearest] = useState<{ barangay: Barangay; distanceKm: number } | null>(null);
+  const [detectedNearest, setDetectedNearest] = useState<{ barangay: Barangay; distanceKm: number; note?: string } | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setGeoError(null);
       api.getRegions().then(setRegions).catch(console.error);
+      api.getProvinces().then(setProvinces).catch(console.error);
+      api.getCities().then(setCities).catch(console.error);
       api.getBarangays().then(setBarangays).catch(console.error);
     }
   }, [isOpen]);
@@ -41,20 +44,22 @@ export const LocationSelectorModal: React.FC<Props> = ({
   useEffect(() => {
     if (selectedRegion) {
       api.getProvinces(selectedRegion).then(setProvinces).catch(console.error);
+      api.getCities(undefined, selectedRegion).then(setCities).catch(console.error);
       setSelectedProvince('');
       setSelectedCity('');
     } else {
-      setProvinces([]);
+      api.getProvinces().then(setProvinces).catch(console.error);
+      api.getCities().then(setCities).catch(console.error);
     }
   }, [selectedRegion]);
 
   // When province changes
   useEffect(() => {
-    if (selectedProvince || selectedRegion) {
-      api.getCities(selectedProvince, selectedRegion).then(setCities).catch(console.error);
+    if (selectedProvince) {
+      api.getCities(selectedProvince, selectedRegion || undefined).then(setCities).catch(console.error);
       setSelectedCity('');
-    } else {
-      setCities([]);
+    } else if (!selectedRegion) {
+      api.getCities().then(setCities).catch(console.error);
     }
   }, [selectedProvince, selectedRegion]);
 
@@ -71,14 +76,31 @@ export const LocationSelectorModal: React.FC<Props> = ({
       .catch(console.error);
   }, [selectedRegion, selectedProvince, selectedCity, searchQuery]);
 
+  const detectFallbackLocation = async (customNote?: string) => {
+    try {
+      // Default to Metro Manila Pasig coordinates (lat: 14.576, lng: 121.063)
+      const res = await api.detectNearestBarangay(14.576, 121.063);
+      if (res.success && res.nearestBarangay) {
+        setDetectedNearest({
+          barangay: res.nearestBarangay,
+          distanceKm: res.distanceKm,
+          note: customNote || 'Estimated location (Metro Manila)',
+        });
+      }
+    } catch (err) {
+      setGeoError('Unable to detect location. Please pick from the directory list below.');
+    } finally {
+      setDetectingLocation(false);
+    }
+  };
+
   const handleDetectLocation = () => {
     setDetectingLocation(true);
     setGeoError(null);
     setDetectedNearest(null);
 
     if (!navigator.geolocation) {
-      setGeoError('Geolocation is not supported by your browser.');
-      setDetectingLocation(false);
+      detectFallbackLocation('Browser geolocation unavailable. Used estimated location.');
       return;
     }
 
@@ -91,18 +113,19 @@ export const LocationSelectorModal: React.FC<Props> = ({
               barangay: res.nearestBarangay,
               distanceKm: res.distanceKm,
             });
+          } else {
+            await detectFallbackLocation();
           }
         } catch (err) {
-          setGeoError('Failed to detect nearest barangay from location.');
+          await detectFallbackLocation();
         } finally {
           setDetectingLocation(false);
         }
       },
-      error => {
-        setDetectingLocation(false);
-        setGeoError('Unable to retrieve location. Please check browser permissions.');
+      async error => {
+        await detectFallbackLocation('GPS permission denied in preview iframe. Used estimated location (Metro Manila).');
       },
-      { timeout: 10000, enableHighAccuracy: true }
+      { timeout: 4000, enableHighAccuracy: false }
     );
   };
 
@@ -155,10 +178,17 @@ export const LocationSelectorModal: React.FC<Props> = ({
             {detectedNearest && (
               <div className="mt-3 p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between shadow-sm">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    Nearest Match ({detectedNearest.distanceKm} km away)
-                  </span>
-                  <div className="text-sm font-bold text-slate-800 mt-1">{detectedNearest.barangay.name}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      Nearest Match ({detectedNearest.distanceKm} km away)
+                    </span>
+                    {detectedNearest.note && (
+                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
+                        {detectedNearest.note}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm font-bold text-slate-800 mt-1">Brgy. {detectedNearest.barangay.name}</div>
                   <div className="text-xs text-slate-500">
                     {detectedNearest.barangay.cityName}, {detectedNearest.barangay.provinceName}
                   </div>
@@ -168,7 +198,7 @@ export const LocationSelectorModal: React.FC<Props> = ({
                     onSelectBarangay(detectedNearest.barangay);
                     onClose();
                   }}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg"
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer shrink-0"
                 >
                   Confirm Choice
                 </button>

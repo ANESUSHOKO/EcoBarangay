@@ -20,8 +20,11 @@ import {
   Camera,
   Upload,
   Share2,
-  X
+  X,
+  Home,
+  ShieldCheck,
 } from 'lucide-react';
+import { RegisterHouseholdModal } from '../../components/modals';
 
 interface ResidentDashboardProps {
   currentUser: User;
@@ -45,6 +48,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
 
   // Log Waste Form Modal
   const [logModalOpen, setLogModalOpen] = useState(false);
+  const [householdModalOpen, setHouseholdModalOpen] = useState(false);
   const [wasteType, setWasteType] = useState('PET Plastic Bottles');
   const [wasteKg, setWasteKg] = useState('2.5');
   const [photoUrl, setPhotoUrl] = useState('');
@@ -165,6 +169,43 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Household Compliance Status Card */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+            <Home className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-black text-slate-900">Household Registration</h3>
+              {currentUser.householdRegistered ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  Verified Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200">
+                  Not Registered Yet (+50 pts)
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {currentUser.householdRegistered
+                ? `${currentUser.householdHeadName || currentUser.fullName} • ${currentUser.householdAddress || 'Address on record'} • ${currentUser.householdMembersCount || 4} members (${currentUser.householdSegregationType || '3-Bin System'})`
+                : 'Register your home address and family segregation bin setup under RA 9003 to claim +50 Eco Points.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setHouseholdModalOpen(true)}
+          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer"
+        >
+          <Home className="w-4 h-4" />
+          <span>{currentUser.householdRegistered ? 'Edit Household Info' : 'Register Your Household'}</span>
+        </button>
+      </div>
 
       {/* Quick Action Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -436,6 +477,14 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Register Household Modal */}
+      <RegisterHouseholdModal
+        isOpen={householdModalOpen}
+        onClose={() => setHouseholdModalOpen(false)}
+        currentUser={currentUser}
+        onUserUpdate={onUserUpdate}
+      />
     </div>
   );
 };

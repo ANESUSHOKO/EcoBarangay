@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "1.0",
+  "collections": [
+    {
+      "name": "users",
+      "description": "User accounts and resident profiles",
+      "documents": [
+        {
+          "id": "user-resident-1",
+          "data": {
+            "email": "juan.dela.cruz@example.ph",
+            "fullName": "Juan Dela Cruz",
+            "role": "RESIDENT",
+            "barangayId": "brgy-kapitolyo",
+            "barangayName": "Kapitolyo",
+            "city": "Pasig City",
+            "province": "Metro Manila",
+            "region": "NCR",
+            "ecoPoints": 350,
+            "householdRegistered": true,
+            "householdHeadName": "Dela Cruz Family",
+            "householdAddress": "#42 West Kapitolyo Drive",
+            "householdMembersCount": 4,
+            "householdSegregationType": "3-Bin Segregation System"
+          }
+        }
+      ]
+    },
+    {
+      "name": "barangays",
+      "description": "Philippine Barangay sustainability metrics and PSGC data",
+      "documents": [
+        {
+          "id": "brgy-kapitolyo",
+          "data": {
+            "name": "Kapitolyo",
+            "cityCode": "137404",
+            "cityName": "Pasig City",
+            "provinceCode": "137400",
+            "provinceName": "Metro Manila",
+            "regionCode": "130000000",
+            "regionName": "NCR - National Capital Region",
+            "population": 18500,
+            "score": {
+              "totalScore": 92,
+              "wasteManagement": 24,
+              "recycling": 18,
+              "communityParticipation": 19,
+              "reportsResolution": 14,
+              "cleanupActivities": 9,
+              "sustainabilityChallenges": 4,
+              "educationParticipation": 4,
+              "tier": "Platinum",
+              "nationalRank": 1,
+              "regionalRank": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "reports",
+      "description": "Community eco-reports and waste issues"
+    },
+    {
+      "name": "events",
+      "description": "Cleanup drives and barangay green workshops"
+    },
+    {
+      "name": "feedPosts",
+      "description": "Social feed posts and community recycling achievements"
+    },
+    {
+      "name": "schedules",
+      "description": "Garbage and recycling collection schedules"
+    },
+    {
+      "name": "governmentPages",
+      "description": "Official government agency channels (DENR, MMDA, etc.)"
+    }
+  ]
+}
