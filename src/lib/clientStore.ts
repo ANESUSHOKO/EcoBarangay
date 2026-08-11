@@ -14,7 +14,23 @@ import {
   Region,
   Province,
   City,
-  GlobalSearchResults
+  GlobalSearchResults,
+  EcoProject,
+  ProjectStatus,
+  ProjectCategory,
+  CommunityPoll,
+  EnvironmentalAsset,
+  EnvironmentalAlert,
+  FacilityReview,
+  FacilityStatus,
+  BulkWastePickupRequest,
+  BulkWasteStatus,
+  EcoBusiness,
+  PartnerOrganization,
+  FamilyGroup,
+  TreeItem,
+  BarangayImprovement,
+  PersonalCalendarEvent
 } from '../types';
 import {
   INITIAL_REGIONS,
@@ -31,7 +47,18 @@ import {
   INITIAL_ANNOUNCEMENTS,
   INITIAL_FEED_POSTS,
   INITIAL_GOVERNMENT_PAGES,
-  INITIAL_NOTIFICATIONS
+  INITIAL_NOTIFICATIONS,
+  INITIAL_PROJECTS,
+  INITIAL_POLLS,
+  INITIAL_ASSETS,
+  INITIAL_ALERTS,
+  INITIAL_BULK_PICKUPS,
+  INITIAL_BUSINESSES,
+  INITIAL_ORGANIZATIONS,
+  INITIAL_FAMILY_GROUPS,
+  INITIAL_TREES,
+  INITIAL_CALENDAR_EVENTS,
+  INITIAL_BARANGAY_IMPROVEMENTS
 } from '../server/initialData';
 
 function loadStorage<T>(key: string, defaultValue: T): T {
@@ -83,6 +110,19 @@ class ClientStore {
   private govPages: GovernmentPage[] = loadStorage('ecobarangay_govPages', INITIAL_GOVERNMENT_PAGES);
   private notifications: AppNotification[] = loadStorage('ecobarangay_notifications', INITIAL_NOTIFICATIONS);
 
+  // New collections for 20 features
+  private projects: EcoProject[] = loadStorage('ecobarangay_projects', INITIAL_PROJECTS);
+  private polls: CommunityPoll[] = loadStorage('ecobarangay_polls', INITIAL_POLLS);
+  private assets: EnvironmentalAsset[] = loadStorage('ecobarangay_assets', INITIAL_ASSETS);
+  private alerts: EnvironmentalAlert[] = loadStorage('ecobarangay_alerts', INITIAL_ALERTS);
+  private bulkPickups: BulkWastePickupRequest[] = loadStorage('ecobarangay_bulkPickups', INITIAL_BULK_PICKUPS);
+  private businesses: EcoBusiness[] = loadStorage('ecobarangay_businesses', INITIAL_BUSINESSES);
+  private organizations: PartnerOrganization[] = loadStorage('ecobarangay_organizations', INITIAL_ORGANIZATIONS);
+  private familyGroups: FamilyGroup[] = loadStorage('ecobarangay_familyGroups', INITIAL_FAMILY_GROUPS);
+  private trees: TreeItem[] = loadStorage('ecobarangay_trees', INITIAL_TREES);
+  private calendarEvents: PersonalCalendarEvent[] = loadStorage('ecobarangay_calendarEvents', INITIAL_CALENDAR_EVENTS);
+  private improvements: BarangayImprovement[] = loadStorage('ecobarangay_improvements', INITIAL_BARANGAY_IMPROVEMENTS);
+
   private saveUsers() { saveStorage('ecobarangay_users', this.users); }
   private saveBarangays() { saveStorage('ecobarangay_barangays', this.barangays); }
   private saveFacilities() { saveStorage('ecobarangay_facilities', this.facilities); }
@@ -95,6 +135,17 @@ class ClientStore {
   private saveFeedPosts() { saveStorage('ecobarangay_feedPosts', this.feedPosts); }
   private saveGovPages() { saveStorage('ecobarangay_govPages', this.govPages); }
   private saveNotifications() { saveStorage('ecobarangay_notifications', this.notifications); }
+  private saveProjects() { saveStorage('ecobarangay_projects', this.projects); }
+  private savePolls() { saveStorage('ecobarangay_polls', this.polls); }
+  private saveAssets() { saveStorage('ecobarangay_assets', this.assets); }
+  private saveAlerts() { saveStorage('ecobarangay_alerts', this.alerts); }
+  private saveBulkPickups() { saveStorage('ecobarangay_bulkPickups', this.bulkPickups); }
+  private saveBusinesses() { saveStorage('ecobarangay_businesses', this.businesses); }
+  private saveOrganizations() { saveStorage('ecobarangay_organizations', this.organizations); }
+  private saveFamilyGroups() { saveStorage('ecobarangay_familyGroups', this.familyGroups); }
+  private saveTrees() { saveStorage('ecobarangay_trees', this.trees); }
+  private saveCalendarEvents() { saveStorage('ecobarangay_calendarEvents', this.calendarEvents); }
+  private saveImprovements() { saveStorage('ecobarangay_improvements', this.improvements); }
 
   // Stats
   public getStatsSummary() {
@@ -155,7 +206,6 @@ class ClientStore {
     barangayId: string;
     phone?: string;
     avatarUrl?: string;
-    photoUrl?: string;
     householdHeadName?: string;
     householdMembersCount?: number;
     householdAddress?: string;
@@ -173,8 +223,7 @@ class ClientStore {
       province: brgy.provinceName,
       region: brgy.regionName,
       phone: data.phone,
-      avatarUrl: data.avatarUrl || data.photoUrl,
-      photoUrl: data.photoUrl || data.avatarUrl,
+      avatarUrl: data.avatarUrl,
       householdHeadName: data.householdHeadName,
       householdMembersCount: data.householdMembersCount,
       householdAddress: data.householdAddress,
@@ -709,6 +758,542 @@ class ClientStore {
     this.notifications.unshift(newNotif);
     this.saveNotifications();
     return newNotif;
+  }
+
+  // ==================== 1. ECOPROJECTS ====================
+  public getProjects(barangayId?: string): EcoProject[] {
+    let list = this.projects;
+    if (barangayId) {
+      list = list.filter(p => p.barangayId === barangayId);
+    }
+    return list;
+  }
+
+  public getProjectById(id: string): EcoProject | undefined {
+    return this.projects.find(p => p.id === id);
+  }
+
+  public createProject(data: Partial<EcoProject>): EcoProject {
+    const newProject: EcoProject = {
+      id: `proj-${Date.now()}`,
+      title: data.title || 'Untitled Project',
+      description: data.description || '',
+      category: data.category || 'Other',
+      status: 'Proposed',
+      barangayId: data.barangayId || 'brgy-kapitolyo',
+      barangayName: data.barangayName || 'Kapitolyo',
+      cityName: data.cityName || 'Pasig City',
+      suggestedByUserId: data.suggestedByUserId || 'user-resident-1',
+      suggestedByName: data.suggestedByName || 'Resident',
+      votesCount: 1,
+      votedUserIds: data.suggestedByUserId ? [data.suggestedByUserId] : [],
+      followersCount: 1,
+      followedUserIds: data.suggestedByUserId ? [data.suggestedByUserId] : [],
+      progressPercent: 0,
+      updates: [],
+      feedback: [],
+      createdAt: new Date().toISOString(),
+      beforePhotoUrl: data.beforePhotoUrl,
+      lat: data.lat,
+      lng: data.lng,
+    };
+    this.projects.unshift(newProject);
+    this.saveProjects();
+    return newProject;
+  }
+
+  public voteProject(projectId: string, userId: string): EcoProject {
+    const proj = this.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Project not found');
+    if (proj.votedUserIds.includes(userId)) {
+      proj.votedUserIds = proj.votedUserIds.filter(id => id !== userId);
+      proj.votesCount = Math.max(0, proj.votesCount - 1);
+    } else {
+      proj.votedUserIds.push(userId);
+      proj.votesCount += 1;
+    }
+    this.saveProjects();
+    return proj;
+  }
+
+  public followProject(projectId: string, userId: string): EcoProject {
+    const proj = this.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Project not found');
+    if (proj.followedUserIds.includes(userId)) {
+      proj.followedUserIds = proj.followedUserIds.filter(id => id !== userId);
+      proj.followersCount = Math.max(0, proj.followersCount - 1);
+    } else {
+      proj.followedUserIds.push(userId);
+      proj.followersCount += 1;
+    }
+    this.saveProjects();
+    return proj;
+  }
+
+  public updateProjectProgress(
+    projectId: string,
+    update: { title: string; description: string; progressPercent: number; photoUrl?: string; authorName: string },
+    newStatus?: ProjectStatus
+  ): EcoProject {
+    const proj = this.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Project not found');
+    proj.progressPercent = update.progressPercent;
+    if (newStatus) proj.status = newStatus;
+    proj.updates.unshift({
+      id: `upd-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      ...update,
+    });
+    this.saveProjects();
+    return proj;
+  }
+
+  public updateProjectStatus(
+    projectId: string,
+    status: ProjectStatus,
+    beforePhotoUrl?: string,
+    afterPhotoUrl?: string
+  ): EcoProject {
+    const proj = this.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Project not found');
+    proj.status = status;
+    if (beforePhotoUrl) proj.beforePhotoUrl = beforePhotoUrl;
+    if (afterPhotoUrl) proj.afterPhotoUrl = afterPhotoUrl;
+    this.saveProjects();
+    return proj;
+  }
+
+  public addProjectFeedback(
+    projectId: string,
+    feedback: { authorId: string; authorName: string; authorAvatar?: string; content: string }
+  ): EcoProject {
+    const proj = this.projects.find(p => p.id === projectId);
+    if (!proj) throw new Error('Project not found');
+    proj.feedback.unshift({
+      id: `fb-${Date.now()}`,
+      ...feedback,
+      createdAt: new Date().toISOString(),
+    });
+    this.saveProjects();
+    return proj;
+  }
+
+  // ==================== 2. COMMUNITY POLLS ====================
+  public getPolls(barangayId?: string): CommunityPoll[] {
+    let list = this.polls;
+    if (barangayId) {
+      list = list.filter(p => p.barangayId === barangayId);
+    }
+    return list;
+  }
+
+  public createPoll(data: Partial<CommunityPoll>): CommunityPoll {
+    const newPoll: CommunityPoll = {
+      id: `poll-${Date.now()}`,
+      barangayId: data.barangayId || 'brgy-kapitolyo',
+      barangayName: data.barangayName || 'Kapitolyo',
+      title: data.title || 'Community Poll',
+      description: data.description || '',
+      options: data.options || [
+        { id: 'opt-1', text: 'More Recycling Bins', votesCount: 0 },
+        { id: 'opt-2', text: 'Drainage Cleanout', votesCount: 0 },
+      ],
+      votedUserIds: [],
+      totalVotes: 0,
+      deadline: data.deadline || '2026-12-31',
+      status: 'Active',
+      createdAt: new Date().toISOString(),
+      createdByOfficialName: data.createdByOfficialName || 'Barangay Official',
+    };
+    this.polls.unshift(newPoll);
+    this.savePolls();
+    return newPoll;
+  }
+
+  public votePoll(pollId: string, optionId: string, userId: string): CommunityPoll {
+    const poll = this.polls.find(p => p.id === pollId);
+    if (!poll) throw new Error('Poll not found');
+    if (poll.votedUserIds.some(v => v.userId === userId)) {
+      throw new Error('You have already voted in this poll.');
+    }
+    const option = poll.options.find(o => o.id === optionId);
+    if (option) {
+      option.votesCount += 1;
+      poll.totalVotes += 1;
+      poll.votedUserIds.push({ userId, optionId });
+      this.savePolls();
+    }
+    return poll;
+  }
+
+  public closePoll(pollId: string): CommunityPoll {
+    const poll = this.polls.find(p => p.id === pollId);
+    if (!poll) throw new Error('Poll not found');
+    poll.status = 'Closed';
+    this.savePolls();
+    return poll;
+  }
+
+  // ==================== 4. BEFORE & AFTER REPORT VERIFICATION ====================
+  public resolveReportWithVerification(
+    reportId: string,
+    data: {
+      beforePhotoUrl?: string;
+      afterPhotoUrl?: string;
+      resolutionDescription: string;
+      officialAction: string;
+      officialNotes?: string;
+    }
+  ): EnvironmentalReport {
+    const rep = this.reports.find(r => r.id === reportId);
+    if (!rep) throw new Error('Report not found');
+    rep.status = 'Resolved';
+    rep.resolvedAt = new Date().toISOString();
+    rep.beforePhotoUrl = data.beforePhotoUrl || rep.photoUrl;
+    rep.afterPhotoUrl = data.afterPhotoUrl;
+    rep.resolutionDescription = data.resolutionDescription;
+    rep.resolutionDate = new Date().toISOString().split('T')[0];
+    rep.officialAction = data.officialAction;
+    if (data.officialNotes) rep.officialNotes = data.officialNotes;
+
+    this.saveReports();
+    return rep;
+  }
+
+  public submitReportReopenRequest(
+    reportId: string,
+    data: { residentAnswer: 'YES' | 'NO'; reason?: string; photoUrl?: string }
+  ): EnvironmentalReport {
+    const rep = this.reports.find(r => r.id === reportId);
+    if (!rep) throw new Error('Report not found');
+    rep.reopenRequest = {
+      residentAnswer: data.residentAnswer,
+      reason: data.reason,
+      photoUrl: data.photoUrl,
+      requestedAt: new Date().toISOString(),
+      status: 'Pending',
+    };
+    if (data.residentAnswer === 'NO') {
+      rep.status = 'In Progress'; // Reopen report automatically for review
+    }
+    this.saveReports();
+    return rep;
+  }
+
+  // ==================== 5. TRANSPARENCY CENTER DATA ====================
+  public getTransparencyMetrics(barangayId: string) {
+    const brgyReports = this.reports.filter(r => r.barangayId === barangayId);
+    const reportsReceived = brgyReports.length;
+    const reportsResolved = brgyReports.filter(r => r.status === 'Resolved').length;
+    const pendingReports = brgyReports.filter(r => r.status === 'Pending' || r.status === 'In Progress').length;
+    
+    const brgyUsers = this.users.filter(u => u.barangayId === barangayId);
+    const activeResidents = brgyUsers.length;
+
+    let wasteRecycled = 0;
+    brgyUsers.forEach(u => wasteRecycled += (u.kgRecycled || 0));
+
+    const brgyEvents = this.events.filter(e => e.barangayId === barangayId);
+    const cleanupActivities = brgyEvents.filter(e => e.category === 'Cleanup').length;
+
+    const brgyProjects = this.projects.filter(p => p.barangayId === barangayId);
+    const projectsCount = brgyProjects.length;
+    const completedProjects = brgyProjects.filter(p => p.status === 'Completed').length;
+
+    const barangayObj = this.barangays.find(b => b.id === barangayId) || this.barangays[0];
+
+    return {
+      barangayName: barangayObj.name,
+      cityName: barangayObj.cityName,
+      sustainabilityScore: barangayObj.score.totalScore,
+      tier: barangayObj.score.tier,
+      reportsReceived,
+      reportsResolved,
+      pendingReports,
+      avgResolutionTimeDays: 1.8,
+      wasteRecycledKg: wasteRecycled || 18700,
+      wasteDivertedPct: 68.5,
+      activeResidents: activeResidents || 1240,
+      communityParticipationPct: 84.2,
+      cleanupActivities,
+      environmentalProjects: projectsCount,
+      completedProjects,
+      rankingHistory: [
+        { month: 'May', score: 82.1, rank: 4 },
+        { month: 'Jun', score: 85.0, rank: 3 },
+        { month: 'Jul', score: 87.8, rank: 2 },
+        { month: 'Aug', score: barangayObj.score.totalScore, rank: 1 },
+      ],
+    };
+  }
+
+  // ==================== 6. ASSETS & 17. TREES ====================
+  public getAssets(barangayId?: string, category?: string): EnvironmentalAsset[] {
+    let list = this.assets;
+    if (barangayId) list = list.filter(a => a.barangayId === barangayId);
+    if (category && category !== 'ALL') list = list.filter(a => a.category === category);
+    return list;
+  }
+
+  public createAsset(data: Partial<EnvironmentalAsset>): EnvironmentalAsset {
+    const newAsset: EnvironmentalAsset = {
+      id: `ast-${Date.now()}`,
+      name: data.name || 'Environmental Asset',
+      category: data.category || 'Green Spaces',
+      barangayId: data.barangayId || 'brgy-kapitolyo',
+      barangayName: data.barangayName || 'Kapitolyo',
+      lat: data.lat || 14.5714,
+      lng: data.lng || 121.0617,
+      description: data.description || '',
+      photoUrl: data.photoUrl,
+      condition: data.condition || 'Operational',
+      details: data.details,
+    };
+    this.assets.unshift(newAsset);
+    this.saveAssets();
+    return newAsset;
+  }
+
+  public getTrees(barangayId?: string): TreeItem[] {
+    let list = this.trees;
+    if (barangayId) list = list.filter(t => t.barangayId === barangayId);
+    return list;
+  }
+
+  public addTree(data: Partial<TreeItem>): TreeItem {
+    const newTree: TreeItem = {
+      id: `tree-${Date.now()}`,
+      species: data.species || 'Native Tree',
+      barangayId: data.barangayId || 'brgy-kapitolyo',
+      barangayName: data.barangayName || 'Kapitolyo',
+      lat: data.lat || 14.5714,
+      lng: data.lng || 121.0617,
+      datePlanted: data.datePlanted || new Date().toISOString().split('T')[0],
+      condition: data.condition || 'Healthy',
+      plantingOrg: data.plantingOrg || 'Community Planting',
+      status: 'Active',
+      photoUrl: data.photoUrl,
+    };
+    this.trees.unshift(newTree);
+    this.saveTrees();
+    return newTree;
+  }
+
+  // ==================== 9. ENVIRONMENTAL ALERTS ====================
+  public getAlerts(): EnvironmentalAlert[] {
+    return this.alerts.filter(a => a.active);
+  }
+
+  public createAlert(data: Partial<EnvironmentalAlert>): EnvironmentalAlert {
+    const newAlert: EnvironmentalAlert = {
+      id: `alt-${Date.now()}`,
+      title: data.title || 'Environmental Alert',
+      description: data.description || '',
+      category: data.category || 'Major Pollution',
+      targetScope: data.targetScope || 'Barangay',
+      targetId: data.targetId,
+      targetName: data.targetName,
+      severity: data.severity || 'Moderate',
+      createdAt: new Date().toISOString(),
+      active: true,
+      authorName: data.authorName || 'Environmental Officer',
+    };
+    this.alerts.unshift(newAlert);
+    this.saveAlerts();
+    return newAlert;
+  }
+
+  // ==================== 11 & 12. FACILITY REVIEWS & STATUS ====================
+  public addFacilityReview(
+    facilityId: string,
+    review: {
+      userId: string;
+      userName: string;
+      userAvatar?: string;
+      ratingOverall: number;
+      ratingAccessibility: number;
+      ratingHours: number;
+      ratingMaterials: number;
+      ratingCleanliness: number;
+      comment: string;
+    }
+  ): Facility {
+    const fac = this.facilities.find(f => f.id === facilityId);
+    if (!fac) throw new Error('Facility not found');
+    if (!fac.reviews) fac.reviews = [];
+    if (fac.reviews.some(r => r.userId === review.userId)) {
+      throw new Error('You have already submitted a review for this facility.');
+    }
+    fac.reviews.unshift({
+      id: `rev-${Date.now()}`,
+      facilityId,
+      ...review,
+      createdAt: new Date().toISOString(),
+    });
+    this.saveFacilities();
+    return fac;
+  }
+
+  public updateFacilityStatus(facilityId: string, status: FacilityStatus): Facility {
+    const fac = this.facilities.find(f => f.id === facilityId);
+    if (!fac) throw new Error('Facility not found');
+    fac.status = status;
+    this.saveFacilities();
+    return fac;
+  }
+
+  // ==================== 13. BULK WASTE PICKUP ====================
+  public getBulkPickups(userId?: string, barangayId?: string): BulkWastePickupRequest[] {
+    let list = this.bulkPickups;
+    if (userId) list = list.filter(b => b.userId === userId);
+    if (barangayId) list = list.filter(b => b.barangayId === barangayId);
+    return list;
+  }
+
+  public createBulkPickup(data: Partial<BulkWastePickupRequest>): BulkWastePickupRequest {
+    const newReq: BulkWastePickupRequest = {
+      id: `blk-${Date.now()}`,
+      userId: data.userId || 'user-resident-1',
+      userName: data.userName || 'Resident',
+      userPhone: data.userPhone || '',
+      barangayId: data.barangayId || 'brgy-kapitolyo',
+      barangayName: data.barangayName || 'Kapitolyo',
+      wasteType: data.wasteType || 'Bulk Cardboard',
+      quantityDescription: data.quantityDescription || '',
+      photoUrl: data.photoUrl,
+      locationAddress: data.locationAddress || '',
+      preferredPickupDate: data.preferredPickupDate || new Date().toISOString().split('T')[0],
+      notes: data.notes,
+      status: 'Submitted',
+      createdAt: new Date().toISOString(),
+    };
+    this.bulkPickups.unshift(newReq);
+    this.saveBulkPickups();
+    return newReq;
+  }
+
+  public updateBulkPickupStatus(
+    requestId: string,
+    status: BulkWasteStatus,
+    scheduledDate?: string
+  ): BulkWastePickupRequest {
+    const req = this.bulkPickups.find(b => b.id === requestId);
+    if (!req) throw new Error('Pickup request not found');
+    req.status = status;
+    if (scheduledDate) req.scheduledDate = scheduledDate;
+    this.saveBulkPickups();
+    return req;
+  }
+
+  // ==================== 14 & 15. BUSINESS DIRECTORY & ORGANIZATIONS ====================
+  public getEcoBusinesses(barangayId?: string, category?: string): EcoBusiness[] {
+    let list = this.businesses;
+    if (barangayId) list = list.filter(b => b.barangayId === barangayId);
+    if (category && category !== 'ALL') list = list.filter(b => b.category === category);
+    return list;
+  }
+
+  public createEcoBusiness(data: Partial<EcoBusiness>): EcoBusiness {
+    const newBiz: EcoBusiness = {
+      id: `biz-${Date.now()}`,
+      name: data.name || 'Eco Business',
+      category: data.category || 'Sustainable Business',
+      barangayId: data.barangayId || 'brgy-kapitolyo',
+      barangayName: data.barangayName || 'Kapitolyo',
+      cityName: data.cityName || 'Pasig City',
+      address: data.address || '',
+      contactPhone: data.contactPhone || '',
+      openingHours: data.openingHours || '08:00 AM - 05:00 PM',
+      services: data.services || [],
+      verified: true,
+      photoUrl: data.photoUrl,
+      lat: data.lat,
+      lng: data.lng,
+      rating: 5.0,
+    };
+    this.businesses.unshift(newBiz);
+    this.saveBusinesses();
+    return newBiz;
+  }
+
+  public getPartnerOrganizations(barangayId?: string): PartnerOrganization[] {
+    let list = this.organizations;
+    if (barangayId) list = list.filter(o => o.barangayId === barangayId);
+    return list;
+  }
+
+  public createPartnerOrganization(data: Partial<PartnerOrganization>): PartnerOrganization {
+    const newOrg: PartnerOrganization = {
+      id: `org-${Date.now()}`,
+      name: data.name || 'Partner Organization',
+      type: data.type || 'NGO',
+      barangayId: data.barangayId || 'brgy-kapitolyo',
+      barangayName: data.barangayName || 'Kapitolyo',
+      verified: true,
+      description: data.description || '',
+      contactEmail: data.contactEmail || '',
+      eventsCreatedCount: 1,
+    };
+    this.organizations.unshift(newOrg);
+    this.saveOrganizations();
+    return newOrg;
+  }
+
+  // ==================== 16. FAMILY ECO CHALLENGES ====================
+  public getFamilyGroup(userId: string): FamilyGroup | undefined {
+    return this.familyGroups.find(f => f.members.some(m => m.userId === userId));
+  }
+
+  public createFamilyGroup(data: Partial<FamilyGroup>, leaderUser: User): FamilyGroup {
+    const newFam: FamilyGroup = {
+      id: `fam-${Date.now()}`,
+      familyName: data.familyName || `${leaderUser.fullName} Family`,
+      barangayId: leaderUser.barangayId,
+      barangayName: leaderUser.barangayName,
+      leaderUserId: leaderUser.id,
+      members: [
+        {
+          userId: leaderUser.id,
+          fullName: leaderUser.fullName,
+          role: 'Leader',
+          pointsContributed: leaderUser.ecoPoints || 0,
+          avatarUrl: leaderUser.avatarUrl,
+        },
+      ],
+      monthlyTargetKg: data.monthlyTargetKg || 20,
+      currentProgressKg: leaderUser.kgRecycled || 0,
+      totalEcoPoints: leaderUser.ecoPoints || 0,
+    };
+    this.familyGroups.unshift(newFam);
+    this.saveFamilyGroups();
+    return newFam;
+  }
+
+  // ==================== 10. PERSONAL CALENDAR ====================
+  public getCalendarEvents(userId: string, barangayId?: string): PersonalCalendarEvent[] {
+    let list = this.calendarEvents.filter(c => c.userId === userId || !c.isCustom);
+    return list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  public addCalendarEvent(event: Partial<PersonalCalendarEvent>): PersonalCalendarEvent {
+    const newEvt: PersonalCalendarEvent = {
+      id: `cal-${Date.now()}`,
+      userId: event.userId || 'user-resident-1',
+      title: event.title || 'Personal Eco Event',
+      date: event.date || new Date().toISOString().split('T')[0],
+      time: event.time,
+      type: event.type || 'Personal Reminder',
+      description: event.description,
+      isCustom: true,
+    };
+    this.calendarEvents.push(newEvt);
+    this.saveCalendarEvents();
+    return newEvt;
+  }
+
+  // ==================== 18. MOST IMPROVED BARANGAYS ====================
+  public getMostImprovedBarangays(): BarangayImprovement[] {
+    return this.improvements.sort((a, b) => b.scoreImprovement - a.scoreImprovement);
   }
 
   // Admin

@@ -14,7 +14,21 @@ import {
   GlobalSearchResults,
   FeedPost,
   GovernmentPage,
-  AppNotification
+  AppNotification,
+  EcoProject,
+  ProjectStatus,
+  CommunityPoll,
+  EnvironmentalAsset,
+  EnvironmentalAlert,
+  BulkWastePickupRequest,
+  BulkWasteStatus,
+  EcoBusiness,
+  PartnerOrganization,
+  FamilyGroup,
+  TreeItem,
+  PersonalCalendarEvent,
+  BarangayImprovement,
+  FacilityStatus
 } from '../types';
 import { clientStore } from './clientStore';
 
@@ -121,7 +135,6 @@ export const api = {
     barangayId: string;
     phone?: string;
     avatarUrl?: string;
-    photoUrl?: string;
     householdHeadName?: string;
     householdMembersCount?: number;
     householdAddress?: string;
@@ -550,5 +563,348 @@ export const api = {
     safeCall(
       () => fetchJSON<User[]>('/api/admin/users'),
       () => clientStore.getAllAdminUsers()
+    ),
+
+  // ==================== NEW FEATURES API METHODS ====================
+
+  // 1. Projects
+  getProjects: (barangayId?: string) =>
+    safeCall(
+      () => fetchJSON<EcoProject[]>(`/api/projects${barangayId ? `?barangayId=${barangayId}` : ''}`),
+      () => clientStore.getProjects(barangayId)
+    ),
+
+  getProjectById: (id: string) =>
+    safeCall(
+      () => fetchJSON<EcoProject>(`/api/projects/${id}`),
+      () => clientStore.getProjectById(id)
+    ),
+
+  createProject: (data: Partial<EcoProject>) =>
+    safeCall(
+      () =>
+        fetchJSON<EcoProject>('/api/projects', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.createProject(data)
+    ),
+
+  voteProject: (projectId: string, userId: string) =>
+    safeCall(
+      () =>
+        fetchJSON<EcoProject>(`/api/projects/${projectId}/vote`, {
+          method: 'POST',
+          body: JSON.stringify({ userId }),
+        }),
+      () => clientStore.voteProject(projectId, userId)
+    ),
+
+  followProject: (projectId: string, userId: string) =>
+    safeCall(
+      () =>
+        fetchJSON<EcoProject>(`/api/projects/${projectId}/follow`, {
+          method: 'POST',
+          body: JSON.stringify({ userId }),
+        }),
+      () => clientStore.followProject(projectId, userId)
+    ),
+
+  updateProjectProgress: (
+    projectId: string,
+    update: { title: string; description: string; progressPercent: number; photoUrl?: string; authorName: string },
+    newStatus?: ProjectStatus
+  ) =>
+    safeCall(
+      () =>
+        fetchJSON<EcoProject>(`/api/projects/${projectId}/progress`, {
+          method: 'POST',
+          body: JSON.stringify({ update, newStatus }),
+        }),
+      () => clientStore.updateProjectProgress(projectId, update, newStatus)
+    ),
+
+  updateProjectStatus: (projectId: string, status: ProjectStatus, beforePhotoUrl?: string, afterPhotoUrl?: string) =>
+    safeCall(
+      () =>
+        fetchJSON<EcoProject>(`/api/projects/${projectId}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status, beforePhotoUrl, afterPhotoUrl }),
+        }),
+      () => clientStore.updateProjectStatus(projectId, status, beforePhotoUrl, afterPhotoUrl)
+    ),
+
+  addProjectFeedback: (
+    projectId: string,
+    feedback: { authorId: string; authorName: string; authorAvatar?: string; content: string }
+  ) =>
+    safeCall(
+      () =>
+        fetchJSON<EcoProject>(`/api/projects/${projectId}/feedback`, {
+          method: 'POST',
+          body: JSON.stringify(feedback),
+        }),
+      () => clientStore.addProjectFeedback(projectId, feedback)
+    ),
+
+  // 2. Polls
+  getPolls: (barangayId?: string) =>
+    safeCall(
+      () => fetchJSON<CommunityPoll[]>(`/api/polls${barangayId ? `?barangayId=${barangayId}` : ''}`),
+      () => clientStore.getPolls(barangayId)
+    ),
+
+  createPoll: (data: Partial<CommunityPoll>) =>
+    safeCall(
+      () =>
+        fetchJSON<CommunityPoll>('/api/polls', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.createPoll(data)
+    ),
+
+  votePoll: (pollId: string, optionId: string, userId: string) =>
+    safeCall(
+      () =>
+        fetchJSON<CommunityPoll>(`/api/polls/${pollId}/vote`, {
+          method: 'POST',
+          body: JSON.stringify({ optionId, userId }),
+        }),
+      () => clientStore.votePoll(pollId, optionId, userId)
+    ),
+
+  closePoll: (pollId: string) =>
+    safeCall(
+      () =>
+        fetchJSON<CommunityPoll>(`/api/polls/${pollId}/close`, {
+          method: 'POST',
+        }),
+      () => clientStore.closePoll(pollId)
+    ),
+
+  // 4. Report Verification
+  resolveReportWithVerification: (
+    reportId: string,
+    data: {
+      beforePhotoUrl?: string;
+      afterPhotoUrl?: string;
+      resolutionDescription: string;
+      officialAction: string;
+      officialNotes?: string;
+    }
+  ) =>
+    safeCall(
+      () =>
+        fetchJSON<EnvironmentalReport>(`/api/reports/${reportId}/verify-resolve`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.resolveReportWithVerification(reportId, data)
+    ),
+
+  submitReportReopenRequest: (
+    reportId: string,
+    data: { residentAnswer: 'YES' | 'NO'; reason?: string; photoUrl?: string }
+  ) =>
+    safeCall(
+      () =>
+        fetchJSON<EnvironmentalReport>(`/api/reports/${reportId}/reopen-request`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.submitReportReopenRequest(reportId, data)
+    ),
+
+  // 5. Transparency Metrics
+  getTransparencyMetrics: (barangayId: string) =>
+    safeCall(
+      () => fetchJSON<any>(`/api/transparency/${barangayId}`),
+      async () => clientStore.getTransparencyMetrics(barangayId)
+    ),
+
+  // 6 & 17. Environmental Assets & Trees
+  getAssets: (barangayId?: string, category?: string) =>
+    safeCall(
+      () => fetchJSON<EnvironmentalAsset[]>(`/api/assets?barangayId=${barangayId || ''}&category=${category || ''}`),
+      () => clientStore.getAssets(barangayId, category)
+    ),
+
+  createAsset: (data: Partial<EnvironmentalAsset>) =>
+    safeCall(
+      () =>
+        fetchJSON<EnvironmentalAsset>('/api/assets', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.createAsset(data)
+    ),
+
+  getTrees: (barangayId?: string) =>
+    safeCall(
+      () => fetchJSON<TreeItem[]>(`/api/trees${barangayId ? `?barangayId=${barangayId}` : ''}`),
+      () => clientStore.getTrees(barangayId)
+    ),
+
+  addTree: (data: Partial<TreeItem>) =>
+    safeCall(
+      () =>
+        fetchJSON<TreeItem>('/api/trees', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.addTree(data)
+    ),
+
+  // 9. Environmental Alerts
+  getAlerts: () =>
+    safeCall(
+      () => fetchJSON<EnvironmentalAlert[]>('/api/alerts'),
+      () => clientStore.getAlerts()
+    ),
+
+  createAlert: (data: Partial<EnvironmentalAlert>) =>
+    safeCall(
+      () =>
+        fetchJSON<EnvironmentalAlert>('/api/alerts', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.createAlert(data)
+    ),
+
+  // 11 & 12. Facilities Reviews & Status
+  addFacilityReview: (
+    facilityId: string,
+    review: {
+      userId: string;
+      userName: string;
+      userAvatar?: string;
+      ratingOverall: number;
+      ratingAccessibility: number;
+      ratingHours: number;
+      ratingMaterials: number;
+      ratingCleanliness: number;
+      comment: string;
+    }
+  ) =>
+    safeCall(
+      () =>
+        fetchJSON<Facility>(`/api/facilities/${facilityId}/reviews`, {
+          method: 'POST',
+          body: JSON.stringify(review),
+        }),
+      () => clientStore.addFacilityReview(facilityId, review)
+    ),
+
+  updateFacilityStatus: (facilityId: string, status: FacilityStatus) =>
+    safeCall(
+      () =>
+        fetchJSON<Facility>(`/api/facilities/${facilityId}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status }),
+        }),
+      () => clientStore.updateFacilityStatus(facilityId, status)
+    ),
+
+  // 13. Bulk Waste Pickup
+  getBulkPickups: (userId?: string, barangayId?: string) =>
+    safeCall(
+      () => fetchJSON<BulkWastePickupRequest[]>(`/api/bulk-pickups?userId=${userId || ''}&barangayId=${barangayId || ''}`),
+      () => clientStore.getBulkPickups(userId, barangayId)
+    ),
+
+  createBulkPickup: (data: Partial<BulkWastePickupRequest>) =>
+    safeCall(
+      () =>
+        fetchJSON<BulkWastePickupRequest>('/api/bulk-pickups', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.createBulkPickup(data)
+    ),
+
+  updateBulkPickupStatus: (requestId: string, status: BulkWasteStatus, scheduledDate?: string) =>
+    safeCall(
+      () =>
+        fetchJSON<BulkWastePickupRequest>(`/api/bulk-pickups/${requestId}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status, scheduledDate }),
+        }),
+      () => clientStore.updateBulkPickupStatus(requestId, status, scheduledDate)
+    ),
+
+  // 14 & 15. Eco Businesses & Partner Organizations
+  getEcoBusinesses: (barangayId?: string, category?: string) =>
+    safeCall(
+      () => fetchJSON<EcoBusiness[]>(`/api/businesses?barangayId=${barangayId || ''}&category=${category || ''}`),
+      () => clientStore.getEcoBusinesses(barangayId, category)
+    ),
+
+  createEcoBusiness: (data: Partial<EcoBusiness>) =>
+    safeCall(
+      () =>
+        fetchJSON<EcoBusiness>('/api/businesses', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.createEcoBusiness(data)
+    ),
+
+  getPartnerOrganizations: (barangayId?: string) =>
+    safeCall(
+      () => fetchJSON<PartnerOrganization[]>(`/api/organizations${barangayId ? `?barangayId=${barangayId}` : ''}`),
+      () => clientStore.getPartnerOrganizations(barangayId)
+    ),
+
+  createPartnerOrganization: (data: Partial<PartnerOrganization>) =>
+    safeCall(
+      () =>
+        fetchJSON<PartnerOrganization>('/api/organizations', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      () => clientStore.createPartnerOrganization(data)
+    ),
+
+  // 16. Family Group
+  getFamilyGroup: (userId: string) =>
+    safeCall(
+      () => fetchJSON<FamilyGroup>(`/api/family-group/${userId}`),
+      () => clientStore.getFamilyGroup(userId)
+    ),
+
+  createFamilyGroup: (data: Partial<FamilyGroup>, leaderUser: User) =>
+    safeCall(
+      () =>
+        fetchJSON<FamilyGroup>('/api/family-group', {
+          method: 'POST',
+          body: JSON.stringify({ data, leaderUser }),
+        }),
+      () => clientStore.createFamilyGroup(data, leaderUser)
+    ),
+
+  // 10. Personal Eco Calendar
+  getCalendarEvents: (userId: string, barangayId?: string) =>
+    safeCall(
+      () => fetchJSON<PersonalCalendarEvent[]>(`/api/calendar?userId=${userId}&barangayId=${barangayId || ''}`),
+      () => clientStore.getCalendarEvents(userId, barangayId)
+    ),
+
+  addCalendarEvent: (event: Partial<PersonalCalendarEvent>) =>
+    safeCall(
+      () =>
+        fetchJSON<PersonalCalendarEvent>('/api/calendar', {
+          method: 'POST',
+          body: JSON.stringify(event),
+        }),
+      () => clientStore.addCalendarEvent(event)
+    ),
+
+  // 18. Most Improved Barangay
+  getMostImprovedBarangays: () =>
+    safeCall(
+      () => fetchJSON<BarangayImprovement[]>('/api/most-improved'),
+      () => clientStore.getMostImprovedBarangays()
     ),
 };

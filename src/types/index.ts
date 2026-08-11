@@ -103,6 +103,8 @@ export interface Facility {
   contact: string;
   description: string;
   distanceKm?: number;
+  status?: FacilityStatus;
+  reviews?: FacilityReview[];
 }
 
 export type ReportCategory = 'Illegal Dumping' | 'Overflowing Bin' | 'Missed Collection' | 'Clogged Drainage' | 'Hazardous Waste';
@@ -121,10 +123,22 @@ export interface EnvironmentalReport {
   reporterId: string;
   reporterName: string;
   photoUrl?: string;
+  beforePhotoUrl?: string;
+  afterPhotoUrl?: string;
   status: ReportStatus;
   createdAt: string;
   resolvedAt?: string;
+  resolutionDescription?: string;
+  resolutionDate?: string;
+  officialAction?: string;
   officialNotes?: string;
+  reopenRequest?: {
+    residentAnswer: 'YES' | 'NO';
+    reason?: string;
+    photoUrl?: string;
+    requestedAt: string;
+    status: 'Pending' | 'Approved' | 'Rejected';
+  };
 }
 
 export interface Event {
@@ -250,11 +264,13 @@ export interface GlobalSearchResults {
   barangays: Barangay[];
   facilities: Facility[];
   events: Event[];
+  projects?: EcoProject[];
+  businesses?: EcoBusiness[];
 }
 
 export interface AppNotification {
   id: string;
-  type: 'EVENT_SIGNUP' | 'REPORT_UPDATE' | 'RANKING_CHANGE' | 'ANNOUNCEMENT';
+  type: 'EVENT_SIGNUP' | 'REPORT_UPDATE' | 'RANKING_CHANGE' | 'ANNOUNCEMENT' | 'PROJECT_UPDATE' | 'ALERT';
   title: string;
   message: string;
   timestamp: string;
@@ -264,3 +280,283 @@ export interface AppNotification {
   targetTab?: string;
   linkId?: string;
 }
+
+// ==================== NEW FEATURES TYPES ====================
+
+export type ProjectStatus =
+  | 'Proposed'
+  | 'Under Review'
+  | 'Voting'
+  | 'Approved'
+  | 'Planning'
+  | 'In Progress'
+  | 'Completed'
+  | 'Rejected'
+  | 'Cancelled';
+
+export type ProjectCategory =
+  | 'Recycling Station'
+  | 'Community Garden'
+  | 'Tree Planting'
+  | 'Composting Facility'
+  | 'Drainage Cleanup'
+  | 'E-Waste Collection'
+  | 'Public Bins'
+  | 'Solar Installation'
+  | 'Other';
+
+export interface ProjectProgressUpdate {
+  id: string;
+  date: string;
+  title: string;
+  description: string;
+  progressPercent: number;
+  photoUrl?: string;
+  authorName: string;
+}
+
+export interface ProjectFeedback {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
+  content: string;
+  createdAt: string;
+  flagsCount?: number;
+}
+
+export interface EcoProject {
+  id: string;
+  title: string;
+  description: string;
+  category: ProjectCategory;
+  status: ProjectStatus;
+  barangayId: string;
+  barangayName: string;
+  cityName: string;
+  suggestedByUserId: string;
+  suggestedByName: string;
+  votesCount: number;
+  votedUserIds: string[];
+  followersCount: number;
+  followedUserIds: string[];
+  progressPercent: number;
+  targetCompletionDate?: string;
+  beforePhotoUrl?: string;
+  afterPhotoUrl?: string;
+  lat?: number;
+  lng?: number;
+  updates: ProjectProgressUpdate[];
+  feedback: ProjectFeedback[];
+  createdAt: string;
+}
+
+export interface CommunityPoll {
+  id: string;
+  barangayId: string;
+  barangayName: string;
+  title: string;
+  description: string;
+  options: { id: string; text: string; votesCount: number }[];
+  votedUserIds: { userId: string; optionId: string }[];
+  totalVotes: number;
+  deadline: string;
+  status: 'Active' | 'Closed';
+  createdAt: string;
+  createdByOfficialName: string;
+}
+
+export type AssetCategory =
+  | 'Trees'
+  | 'Community Gardens'
+  | 'Recycling Stations'
+  | 'Public Waste Bins'
+  | 'Rainwater Systems'
+  | 'Bike Parking'
+  | 'Solar Installations'
+  | 'Drainage Systems'
+  | 'Green Spaces';
+
+export interface EnvironmentalAsset {
+  id: string;
+  name: string;
+  category: AssetCategory;
+  barangayId: string;
+  barangayName: string;
+  lat: number;
+  lng: number;
+  description: string;
+  photoUrl?: string;
+  condition?: string;
+  details?: string;
+}
+
+export type AlertSeverity = 'Low' | 'Moderate' | 'High' | 'Critical';
+export type AlertTargetScope = 'Barangay' | 'City' | 'Province' | 'Region' | 'Entire Philippines';
+
+export interface EnvironmentalAlert {
+  id: string;
+  title: string;
+  description: string;
+  category: 'Flooding' | 'Chemical Spill' | 'Major Pollution' | 'Waste Facility Fire' | 'Water Contamination' | 'Hazardous Waste Incident';
+  targetScope: AlertTargetScope;
+  targetId?: string;
+  targetName?: string;
+  severity: AlertSeverity;
+  createdAt: string;
+  active: boolean;
+  authorName: string;
+}
+
+export interface FacilityReview {
+  id: string;
+  facilityId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  ratingOverall: number; // 1 to 5
+  ratingAccessibility: number;
+  ratingHours: number;
+  ratingMaterials: number;
+  ratingCleanliness: number;
+  comment: string;
+  createdAt: string;
+}
+
+export type FacilityStatus =
+  | 'Open'
+  | 'Closed'
+  | 'Temporarily Closed'
+  | 'Under Maintenance'
+  | 'Full Capacity'
+  | 'Limited Materials';
+
+export type BulkWasteType =
+  | 'Large Recyclables'
+  | 'Old Appliances'
+  | 'Furniture'
+  | 'E-Waste'
+  | 'Bulk Cardboard'
+  | 'Other';
+
+export type BulkWasteStatus = 'Submitted' | 'Scheduled' | 'Collected' | 'Completed' | 'Cancelled';
+
+export interface BulkWastePickupRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userPhone: string;
+  barangayId: string;
+  barangayName: string;
+  wasteType: BulkWasteType;
+  quantityDescription: string;
+  photoUrl?: string;
+  locationAddress: string;
+  preferredPickupDate: string;
+  notes?: string;
+  status: BulkWasteStatus;
+  scheduledDate?: string;
+  createdAt: string;
+}
+
+export type BusinessCategory =
+  | 'Refill Station'
+  | 'Zero-Waste Store'
+  | 'Recycling Service'
+  | 'Repair Shop'
+  | 'Second-Hand Store'
+  | 'Sustainable Business';
+
+export interface EcoBusiness {
+  id: string;
+  name: string;
+  category: BusinessCategory;
+  barangayId: string;
+  barangayName: string;
+  cityName: string;
+  address: string;
+  contactPhone: string;
+  openingHours: string;
+  services: string[];
+  verified: boolean;
+  photoUrl?: string;
+  lat?: number;
+  lng?: number;
+  rating?: number;
+}
+
+export interface PartnerOrganization {
+  id: string;
+  name: string;
+  type: 'School' | 'NGO' | 'Community Organization';
+  barangayId: string;
+  barangayName: string;
+  verified: boolean;
+  description: string;
+  contactEmail: string;
+  logoUrl?: string;
+  eventsCreatedCount: number;
+}
+
+export interface FamilyGroupMember {
+  userId: string;
+  fullName: string;
+  role: 'Leader' | 'Member';
+  pointsContributed: number;
+  avatarUrl?: string;
+}
+
+export interface FamilyGroup {
+  id: string;
+  familyName: string;
+  barangayId: string;
+  barangayName: string;
+  leaderUserId: string;
+  members: FamilyGroupMember[];
+  monthlyTargetKg: number;
+  currentProgressKg: number;
+  totalEcoPoints: number;
+}
+
+export interface TreeItem {
+  id: string;
+  species: string;
+  barangayId: string;
+  barangayName: string;
+  lat: number;
+  lng: number;
+  datePlanted: string;
+  condition: 'Healthy' | 'Needs Care' | 'Sapling' | 'Mature';
+  photoUrl?: string;
+  plantingOrg: string;
+  status: 'Active' | 'Protected' | 'Relocated';
+}
+
+export interface BarangayImprovement {
+  barangayId: string;
+  barangayName: string;
+  cityName: string;
+  previousScore: number;
+  currentScore: number;
+  scoreImprovement: number;
+  rankImprovement: number;
+  timeframe: 'Monthly' | 'Quarterly' | 'Yearly';
+}
+
+export interface PersonalCalendarEvent {
+  id: string;
+  userId: string;
+  title: string;
+  date: string;
+  time?: string;
+  type:
+    | 'Garbage Collection'
+    | 'Recycling Schedule'
+    | 'Cleanup Event'
+    | 'Challenge Deadline'
+    | 'Project Event'
+    | 'Personal Reminder';
+  description?: string;
+  isCustom: boolean;
+}
+
