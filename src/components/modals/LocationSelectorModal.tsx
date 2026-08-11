@@ -27,7 +27,12 @@ export const LocationSelectorModal: React.FC<Props> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [detectingLocation, setDetectingLocation] = useState<boolean>(false);
-  const [detectedNearest, setDetectedNearest] = useState<{ barangay: Barangay; distanceKm: number; note?: string } | null>(null);
+  const [detectedNearest, setDetectedNearest] = useState<{
+    barangay: Barangay;
+    distanceKm: number;
+    detectedAddress?: string;
+    note?: string;
+  } | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,56 +81,51 @@ export const LocationSelectorModal: React.FC<Props> = ({
       .catch(console.error);
   }, [selectedRegion, selectedProvince, selectedCity, searchQuery]);
 
-  const detectFallbackLocation = async (customNote?: string) => {
-    try {
-      // Default to Metro Manila Pasig coordinates (lat: 14.576, lng: 121.063)
-      const res = await api.detectNearestBarangay(14.576, 121.063);
-      if (res.success && res.nearestBarangay) {
-        setDetectedNearest({
-          barangay: res.nearestBarangay,
-          distanceKm: res.distanceKm,
-          note: customNote || 'Estimated location (Metro Manila)',
-        });
-      }
-    } catch (err) {
-      setGeoError('Unable to detect location. Please pick from the directory list below.');
-    } finally {
-      setDetectingLocation(false);
-    }
-  };
-
   const handleDetectLocation = () => {
     setDetectingLocation(true);
     setGeoError(null);
     setDetectedNearest(null);
 
     if (!navigator.geolocation) {
-      detectFallbackLocation('Browser geolocation unavailable. Used estimated location.');
+      setGeoError('Geolocation is not supported by your browser. Please select your barangay from the directory list below.');
+      setDetectingLocation(false);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       async position => {
         try {
-          const res = await api.detectNearestBarangay(position.coords.latitude, position.coords.longitude);
-          if (res.success && res.nearestBarangay) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const res = await api.detectNearestBarangay(lat, lng);
+          if (res && res.success && res.nearestBarangay) {
             setDetectedNearest({
               barangay: res.nearestBarangay,
               distanceKm: res.distanceKm,
+              detectedAddress: res.reverseGeocodedAddress,
             });
           } else {
-            await detectFallbackLocation();
+            setGeoError(`Unable to locate a matching barangay near (${lat.toFixed(4)}, ${lng.toFixed(4)}). Please choose manually from the directory below.`);
           }
-        } catch (err) {
-          await detectFallbackLocation();
+        } catch (err: any) {
+          setGeoError('Error detecting nearby barangay: ' + (err.message || 'Location service request failed.'));
         } finally {
           setDetectingLocation(false);
         }
       },
-      async error => {
-        await detectFallbackLocation('GPS permission denied in preview iframe. Used estimated location (Metro Manila).');
+      error => {
+        let msg = 'Unable to detect your location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = 'Location access was denied. Please enable location permissions in your browser settings or select your barangay manually below.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = 'GPS location unavailable. Please check your device location settings or select your barangay manually below.';
+        } else if (error.code === error.TIMEOUT) {
+          msg = 'GPS location request timed out. Please try again or choose your barangay manually from the directory below.';
+        }
+        setGeoError(msg);
+        setDetectingLocation(false);
       },
-      { timeout: 4000, enableHighAccuracy: false }
+      { timeout: 10000, enableHighAccuracy: true, maximumAge: 60000 }
     );
   };
 
@@ -177,28 +177,28 @@ export const LocationSelectorModal: React.FC<Props> = ({
 
             {detectedNearest && (
               <div className="mt-3 p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between shadow-sm">
-                <div>
+                <div className="flex-1 pr-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                       Nearest Match ({detectedNearest.distanceKm} km away)
                     </span>
-                    {detectedNearest.note && (
-                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
-                        {detectedNearest.note}
-                      </span>
-                    )}
                   </div>
                   <div className="text-sm font-bold text-slate-800 mt-1">Brgy. {detectedNearest.barangay.name}</div>
                   <div className="text-xs text-slate-500">
                     {detectedNearest.barangay.cityName}, {detectedNearest.barangay.provinceName}
                   </div>
+                  {detectedNearest.detectedAddress && (
+                    <div className="text-[11px] text-slate-400 mt-1 line-clamp-1 italic">
+                      GPS Location: {detectedNearest.detectedAddress}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => {
                     onSelectBarangay(detectedNearest.barangay);
                     onClose();
                   }}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer shrink-0"
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 transition-colors shadow-sm"
                 >
                   Confirm Choice
                 </button>

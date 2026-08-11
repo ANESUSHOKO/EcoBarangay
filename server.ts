@@ -168,7 +168,7 @@ async function startServer() {
   });
 
   // Location: Detect Nearest Barangay via Geolocation
-  app.post('/api/locations/detect-nearest', (req, res) => {
+  app.post('/api/locations/detect-nearest', async (req, res) => {
     const { lat, lng } = req.body;
     if (lat === undefined || lng === undefined) {
       return res.status(400).json({ error: 'Latitude and longitude are required' });
@@ -186,7 +186,28 @@ async function startServer() {
       }
     }
 
-    res.json({ success: true, nearestBarangay: nearest, distanceKm: minDistance });
+    let reverseGeocodedAddress = '';
+    try {
+      const nomRes = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        { headers: { 'User-Agent': 'EcoBarangay/1.0' } }
+      );
+      if (nomRes.ok) {
+        const nomData = await nomRes.json();
+        if (nomData && nomData.display_name) {
+          reverseGeocodedAddress = nomData.display_name;
+        }
+      }
+    } catch (e) {
+      // Optional reverse geocode
+    }
+
+    res.json({
+      success: true,
+      nearestBarangay: nearest,
+      distanceKm: minDistance,
+      reverseGeocodedAddress,
+    });
   });
 
   // Rankings Leaderboard

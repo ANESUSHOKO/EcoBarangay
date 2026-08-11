@@ -16,6 +16,71 @@ import {
   GovernmentPage,
   AppNotification
 } from '../types';
+import {
+  INITIAL_REGIONS,
+  INITIAL_PROVINCES,
+  INITIAL_CITIES,
+  INITIAL_BARANGAYS
+} from '../server/initialData';
+
+function calculateHaversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 100) / 100;
+}
+
+export async function clientDetectNearestBarangay(lat: number, lng: number) {
+  let reverseGeocodedAddress = '';
+  try {
+    const nomRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      }
+    );
+    if (nomRes.ok) {
+      const nomData = await nomRes.json();
+      if (nomData && nomData.display_name) {
+        reverseGeocodedAddress = nomData.display_name;
+      }
+    }
+  } catch (e) {
+    // Reverse geocoding optional
+  }
+
+  const barangays = INITIAL_BARANGAYS;
+  let nearest: Barangay | null = null;
+  let minDistance = Infinity;
+
+  for (const b of barangays) {
+    const dist = calculateHaversineDistanceKm(lat, lng, b.lat, b.lng);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearest = b;
+    }
+  }
+
+  if (!nearest) {
+    throw new Error('No barangays found in directory');
+  }
+
+  return {
+    success: true,
+    nearestBarangay: { ...nearest, distanceKm: minDistance },
+    distanceKm: minDistance,
+    reverseGeocodedAddress,
+  };
+}
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -87,16 +152,25 @@ export const api = {
   getUserProfile: (id: string) => fetchJSON<User>(`/api/auth/user/${id}`),
 
   // Locations
-  getRegions: () => fetchJSON<Region[]>('/api/locations/regions'),
+  getRegions: () => fetchJSON<Region[]>('/api/locations/regions').catch(() => INITIAL_REGIONS),
 
   getProvinces: (regionCode?: string) =>
-    fetchJSON<Province[]>(`/api/locations/provinces${regionCode ? `?regionCode=${regionCode}` : ''}`),
+    fetchJSON<Province[]>(`/api/locations/provinces${regionCode ? `?regionCode=${regionCode}` : ''}`).catch(() => {
+      let list = INITIAL_PROVINCES;
+      if (regionCode) list = list.filter(p => p.regionCode === regionCode);
+      return list;
+    }),
 
   getCities: (provinceCode?: string, regionCode?: string) => {
     const params = new URLSearchParams();
     if (provinceCode) params.append('provinceCode', provinceCode);
     if (regionCode) params.append('regionCode', regionCode);
-    return fetchJSON<City[]>(`/api/locations/cities?${params.toString()}`);
+    return fetchJSON<City[]>(`/api/locations/cities?${params.toString()}`).catch(() => {
+      let list = INITIAL_CITIES;
+      if (provinceCode) list = list.filter(c => c.provinceCode === provinceCode);
+      if (regionCode) list = list.filter(c => c.regionCode === regionCode);
+      return list;
+    });
   },
 
   getBarangays: (filters?: { cityCode?: string; provinceCode?: string; regionCode?: string; search?: string }) => {
@@ -105,17 +179,40 @@ export const api = {
     if (filters?.provinceCode) params.append('provinceCode', filters.provinceCode);
     if (filters?.regionCode) params.append('regionCode', filters.regionCode);
     if (filters?.search) params.append('search', filters.search);
-    return fetchJSON<Barangay[]>(`/api/locations/barangays?${params.toString()}`);
+    return fetchJSON<Barangay[]>(`/api/locations/barangays?${params.toString()}`).catch(() => {
+      let list = INITIAL_BARANGAYS;
+      if (filters?.cityCode) list = list.filter(b => b.cityCode === filters.cityCode);
+      if (filters?.provinceCode) list = list.filter(b => b.provinceCode === filters.provinceCode);
+      if (filters?.regionCode) list = list.filter(b => b.regionCode === filters.regionCode);
+      if (filters?.search) {
+        const q = filters.search.toLowerCase();
+        list = list.filter(
+          b =>
+            b.name.toLowerCase().includes(q) ||
+            b.cityName.toLowerCase().includes(q) ||
+            b.provinceName.toLowerCase().includes(q)
+        );
+      }
+      return list;
+    });
   },
 
-  detectNearestBarangay: (lat: number, lng: number) =>
-    fetchJSON<{ success: boolean; nearestBarangay: Barangay & { distanceKm: number }; distanceKm: number }>(
-      '/api/locations/detect-nearest',
-      {
+  detectNearestBarangay: async (lat: number, lng: number) => {
+    try {
+      return await fetchJSON<{
+        success: boolean;
+        nearestBarangay: Barangay & { distanceKm: number };
+        distanceKm: number;
+        reverseGeocodedAddress?: string;
+      }>('/api/locations/detect-nearest', {
         method: 'POST',
         body: JSON.stringify({ lat, lng }),
-      }
-    ),
+      });
+    } catch (err) {
+      console.warn('Backend API detect-nearest unreachable, executing client-side detection fallback:', err);
+      return clientDetectNearestBarangay(lat, lng);
+    }
+  },
 
   // Rankings
   getRankings: (filters?: { regionCode?: string; provinceCode?: string; cityCode?: string; tier?: string; search?: string }) => {
