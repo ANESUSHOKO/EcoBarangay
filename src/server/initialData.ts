@@ -13,7 +13,18 @@ import {
   Announcement,
   FeedPost,
   GovernmentPage,
-  AppNotification
+  AppNotification,
+  EcoProject,
+  CommunityPoll,
+  EnvironmentalAsset,
+  EnvironmentalAlert,
+  BulkWastePickupRequest,
+  EcoBusiness,
+  PartnerOrganization,
+  FamilyGroup,
+  TreeItem,
+  PersonalCalendarEvent,
+  BarangayImprovement
 } from '../types';
 
 export const INITIAL_REGIONS: Region[] = [
