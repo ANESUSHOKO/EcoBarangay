@@ -1,0 +1,6 @@
+{
+  "name": "EcoBarangay",
+  "description": "Philippine sustainability and community environmental management platform",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

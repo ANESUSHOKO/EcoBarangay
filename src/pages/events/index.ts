@@ -1,0 +1,1 @@
+export { EventsChallengesPage } from './EventsChallengesPage';
