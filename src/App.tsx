@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './lib/api';
 import { User, Barangay, Language } from './types';
+import { ThemeMode, getInitialTheme, setThemeMode } from './lib/theme';
 import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav } from './components';
 import {
   HomePage,
@@ -22,45 +23,84 @@ export function App() {
 
   const [activeTab, setActiveTab] = useState<string>('home');
   const [lang, setLang] = useState<Language>('en');
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
 
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
 
+  // Sync theme to DOM
+  useEffect(() => {
+    setThemeMode(theme);
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Initial load
   useEffect(() => {
-    // Load default user (Maria Santos - Resident)
-    api.login('resident@ecobarangay.ph')
-      .then(res => {
-        if (res.success && res.user) {
-          setCurrentUser(res.user);
-          // Load default barangay
-          api.getBarangays().then(barangays => {
-            const match = barangays.find(b => b.id === res.user.barangayId) || barangays[0];
-            setCurrentBarangay(match);
-          }).catch(console.error);
-        }
-      })
-      .catch(console.error);
+    // 1. Load initial barangay
+    api.getBarangays().then(barangays => {
+      if (barangays.length > 0) {
+        const savedBrgyId = localStorage.getItem('ecobarangay_selected_barangay_id');
+        const match = (savedBrgyId ? barangays.find(b => b.id === savedBrgyId) : null) || barangays[0];
+        setCurrentBarangay(match);
+      }
+    }).catch(console.error);
+
+    // 2. Check if a real user has an active session
+    const savedUserId = localStorage.getItem('ecobarangay_current_user_id');
+    if (savedUserId) {
+      api.getUserProfile(savedUserId)
+        .then(user => {
+          if (user) {
+            setCurrentUser(user);
+            api.getBarangays().then(barangays => {
+              const match = barangays.find(b => b.id === user.barangayId);
+              if (match) setCurrentBarangay(match);
+            }).catch(console.error);
+          } else {
+            localStorage.removeItem('ecobarangay_current_user_id');
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem('ecobarangay_current_user_id');
+        });
+    }
   }, []);
 
-  const handleSwitchUser = async (email: string) => {
+  const handleUserLogin = (user: User) => {
+    setCurrentUser(user);
     try {
-      const res = await api.login(email);
-      if (res.success && res.user) {
-        setCurrentUser(res.user);
-        // Sync active barangay to user's registered barangay
-        const barangays = await api.getBarangays();
-        const match = barangays.find(b => b.id === res.user.barangayId);
-        if (match) setCurrentBarangay(match);
-      }
-    } catch (err) {
-      console.error(err);
+      localStorage.setItem('ecobarangay_current_user_id', user.id);
+    } catch (e) {
+      console.warn(e);
     }
+    api.getBarangays().then(barangays => {
+      const match = barangays.find(b => b.id === user.barangayId);
+      if (match) setCurrentBarangay(match);
+    }).catch(console.error);
+    setActiveTab('dashboard');
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('ecobarangay_current_user_id');
+    } catch (e) {
+      console.warn(e);
+    }
+    setActiveTab('home');
   };
 
   const handleSelectBarangay = (b: Barangay) => {
     setCurrentBarangay(b);
+    try {
+      localStorage.setItem('ecobarangay_selected_barangay_id', b.id);
+    } catch (e) {
+      console.warn(e);
+    }
   };
 
   const handleEarnPointsFromGuide = async (points: number, activityName: string) => {
@@ -85,7 +125,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200">
       {/* Navbar */}
       <Navbar
         currentUser={currentUser}
@@ -95,11 +135,12 @@ export function App() {
         onOpenLocationModal={() => setIsLocationModalOpen(true)}
         onOpenGuideModal={() => setIsGuideModalOpen(true)}
         onOpenProfileSettings={() => setIsProfileModalOpen(true)}
-        onSwitchUser={handleSwitchUser}
-        onLogout={() => setCurrentUser(null)}
+        onLogout={handleLogout}
         lang={lang}
         onToggleLang={() => setLang(l => (l === 'en' ? 'tl' : 'en'))}
         onSelectBarangayFromSearch={handleSelectBarangay}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main View Container */}
@@ -123,10 +164,7 @@ export function App() {
 
         {activeTab === 'auth' && (
           <AuthPage
-            onSuccess={user => {
-              setCurrentUser(user);
-              setActiveTab('dashboard');
-            }}
+            onSuccess={handleUserLogin}
             onOpenLocationModal={() => setIsLocationModalOpen(true)}
             selectedBarangay={currentBarangay}
           />
@@ -163,10 +201,7 @@ export function App() {
 
         {activeTab === 'dashboard' && !currentUser && (
           <AuthPage
-            onSuccess={user => {
-              setCurrentUser(user);
-              setActiveTab('dashboard');
-            }}
+            onSuccess={handleUserLogin}
             onOpenLocationModal={() => setIsLocationModalOpen(true)}
             selectedBarangay={currentBarangay}
           />
@@ -208,7 +243,9 @@ export function App() {
         {activeTab === 'schedule' && currentBarangay && (
           <GarbageSchedulePage
             currentBarangay={currentBarangay}
+            currentUser={currentUser}
             lang={lang}
+            onNavigate={setActiveTab}
           />
         )}
       </main>
@@ -234,10 +271,11 @@ export function App() {
         setActiveTab={setActiveTab}
         onOpenLocationModal={() => setIsLocationModalOpen(true)}
         onOpenGuideModal={() => setIsGuideModalOpen(true)}
-        onSwitchUser={handleSwitchUser}
-        onLogout={() => setCurrentUser(null)}
+        onLogout={handleLogout}
         lang={lang}
         onToggleLang={() => setLang(l => (l === 'en' ? 'tl' : 'en'))}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Modals */}

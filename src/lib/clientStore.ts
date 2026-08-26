@@ -61,6 +61,23 @@ import {
   INITIAL_BARANGAY_IMPROVEMENTS
 } from '../server/initialData';
 
+const STORE_VERSION = 'ecobarangay_v2_clean_prod';
+if (typeof window !== 'undefined' && localStorage.getItem('ecobarangay_store_version') !== STORE_VERSION) {
+  try {
+    localStorage.removeItem('ecobarangay_users');
+    localStorage.removeItem('ecobarangay_reports');
+    localStorage.removeItem('ecobarangay_activityLogs');
+    localStorage.removeItem('ecobarangay_bulkPickups');
+    localStorage.removeItem('ecobarangay_familyGroups');
+    localStorage.removeItem('ecobarangay_calendarEvents');
+    localStorage.removeItem('ecobarangay_notifications');
+    localStorage.removeItem('ecobarangay_current_user_id');
+    localStorage.setItem('ecobarangay_store_version', STORE_VERSION);
+  } catch (e) {
+    console.warn('Could not reset demo cache', e);
+  }
+}
+
 function loadStorage<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
@@ -174,27 +191,10 @@ class ClientStore {
 
   // Auth
   public login(email: string) {
-    let user = this.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.trim().toLowerCase();
+    const user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
     if (!user) {
-      const kapitolyo = this.barangays.find(b => b.name === 'Kapitolyo') || this.barangays[0];
-      user = {
-        id: `user-${Date.now()}`,
-        email,
-        fullName: email.split('@')[0],
-        role: 'RESIDENT',
-        barangayId: kapitolyo ? kapitolyo.id : 'brgy-kapitolyo',
-        barangayName: kapitolyo ? kapitolyo.name : 'Kapitolyo',
-        city: kapitolyo ? kapitolyo.cityName : 'Pasig City',
-        province: kapitolyo ? kapitolyo.provinceName : 'Metro Manila',
-        region: kapitolyo ? kapitolyo.regionName : 'NCR',
-        ecoPoints: 100,
-        ecoScore: 75,
-        kgRecycled: 12.5,
-        challengesCompleted: 1,
-        cleanupActivitiesCount: 2
-      };
-      this.users.push(user);
-      this.saveUsers();
+      return { success: false, message: 'No registered account found with this email. Please register below.' };
     }
     return { success: true, user };
   }
@@ -211,29 +211,37 @@ class ClientStore {
     householdAddress?: string;
     householdSegregationType?: string;
   }) {
+    const cleanEmail = data.email.trim().toLowerCase();
+    const existing = this.users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      return { success: false, message: 'An account with this email address already exists. Please log in.' };
+    }
+
     const brgy = this.barangays.find(b => b.id === data.barangayId) || this.barangays[0];
     const newUser: User = {
       id: `user-${Date.now()}`,
-      email: data.email,
-      fullName: data.fullName,
+      email: data.email.trim(),
+      fullName: data.fullName.trim(),
       role: (data.role as any) || 'RESIDENT',
       barangayId: brgy.id,
       barangayName: brgy.name,
       city: brgy.cityName,
       province: brgy.provinceName,
       region: brgy.regionName,
-      phone: data.phone,
-      avatarUrl: data.avatarUrl,
-      householdHeadName: data.householdHeadName,
-      householdMembersCount: data.householdMembersCount,
-      householdAddress: data.householdAddress,
-      householdSegregationType: data.householdSegregationType,
+      phone: data.phone?.trim() || undefined,
+      avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+      householdHeadName: data.householdHeadName?.trim() || undefined,
+      householdMembersCount: data.householdMembersCount || 1,
+      householdAddress: data.householdAddress?.trim() || undefined,
+      householdSegregationType: data.householdSegregationType || 'Biodegradable, Non-Biodegradable & Recyclable (3-Way)',
       householdRegistered: Boolean(data.householdHeadName),
-      ecoPoints: 50,
-      ecoScore: 60,
+      ecoPoints: 100,
+      ecoScore: 75,
       kgRecycled: 0,
       challengesCompleted: 0,
-      cleanupActivitiesCount: 0
+      cleanupActivitiesCount: 0,
+      followingUserIds: [],
+      followingPageIds: ['gov-denr', 'gov-pasig-cenro']
     };
     this.users.push(newUser);
     this.saveUsers();
@@ -247,8 +255,7 @@ class ClientStore {
       this.saveUsers();
       return { success: true, user: this.users[index] };
     }
-    const fallbackUser = { id, email: 'user@example.com', fullName: 'User', ...updates } as User;
-    return { success: true, user: fallbackUser };
+    return { success: false, message: 'User profile not found' };
   }
 
   public registerHousehold(id: string, householdData: {
@@ -274,7 +281,7 @@ class ClientStore {
   public getUserProfile(id: string) {
     const u = this.users.find(user => user.id === id);
     if (u) return u;
-    return this.users[0];
+    return null;
   }
 
   // Locations

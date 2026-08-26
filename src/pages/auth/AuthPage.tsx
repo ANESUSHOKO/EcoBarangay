@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { uploadProfilePicture } from '../../lib/storage';
 import { User, UserRole, Barangay } from '../../types';
 import {
   Leaf,
@@ -69,15 +68,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setUploadingImage(true);
     setError(null);
 
-    try {
-      const downloadUrl = await uploadProfilePicture(file);
-      setAvatarUrl(downloadUrl);
-    } catch (err: any) {
-      console.error('Image upload failed:', err);
-      setError('Failed to upload image. Please try again.');
-    } finally {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setAvatarUrl(reader.result);
+      }
       setUploadingImage(false);
-    }
+    };
+    reader.onerror = () => {
+      setError('Failed to read image file.');
+      setUploadingImage(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -89,6 +91,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       const res = await api.login(email);
       if (res.success && res.user) {
         onSuccess(res.user);
+      } else {
+        setError(res.message || 'No account found with this email. Please register below.');
       }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -104,40 +108,36 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
 
+    if (!fullName.trim()) {
+      setError('Please enter your full name.');
+      return;
+    }
+
+    if (!email.trim() || !email.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       const res = await api.register({
-        email,
-        fullName,
+        email: email.trim(),
+        fullName: fullName.trim(),
         role,
         barangayId: selectedBarangay.id,
-        phone,
+        phone: phone.trim() || undefined,
         avatarUrl: avatarUrl || undefined,
-        photoUrl: avatarUrl || undefined,
       });
 
       if (res.success && res.user) {
         onSuccess(res.user);
+      } else {
+        setError(res.message || 'Registration failed.');
       }
     } catch (err: any) {
       setError(err.message || 'Registration failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePresetLogin = async (presetEmail: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.login(presetEmail);
-      if (res.success && res.user) {
-        onSuccess(res.user);
-      }
-    } catch (err: any) {
-      setError('Failed to log in with preset account.');
     } finally {
       setLoading(false);
     }
@@ -430,38 +430,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             </form>
           )}
 
-          {/* Preset Demo Accounts */}
-          <div className="pt-4 border-t border-slate-100 space-y-3">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">
-              Instant Demo Access
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handlePresetLogin('resident@ecobarangay.ph')}
-                className="p-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 rounded-xl text-[11px] font-bold transition-colors"
-              >
-                Maria Santos (Resident)
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePresetLogin('official@ecobarangay.ph')}
-                className="p-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 rounded-xl text-[11px] font-bold transition-colors"
-              >
-                Kapitan Juan (Official)
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePresetLogin('admin@ecobarangay.ph')}
-                className="p-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 rounded-xl text-[11px] font-bold transition-colors"
-              >
-                Admin Sofia (System Admin)
-              </button>
-            </div>
-          </div>
-
           {/* Toggle Login/Register */}
-          <div className="text-center pt-2">
+          <div className="text-center pt-2 border-t border-slate-100">
             <button
               onClick={() => {
                 setMode(mode === 'login' ? 'register' : 'login');

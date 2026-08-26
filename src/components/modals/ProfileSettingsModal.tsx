@@ -1,372 +1,247 @@
 import React, { useState } from 'react';
 import { User } from '../../types';
 import { api } from '../../lib/api';
-import { uploadProfilePicture } from '../../lib/storage';
-import {
-  X,
-  Camera,
-  Upload,
-  Link,
-  Sparkles,
-  Check,
-  User as UserIcon,
-  Phone,
-  Home,
-  Users,
-  MapPin,
-  Save,
-  AlertCircle
-} from 'lucide-react';
+import { ThemeMode } from '../../lib/theme';
+import { X, User as UserIcon, Phone, MapPin, Camera, Save, CheckCircle2, AlertCircle, Moon, Sun } from 'lucide-react';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User;
-  onUpdateUser: (updatedUser: User) => void;
+  onUpdateUser: (user: User) => void;
+  theme?: ThemeMode;
+  onToggleTheme?: () => void;
 }
-
-const PRESET_AVATARS = [
-  { label: 'Resident 1', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250' },
-  { label: 'Resident 2', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250' },
-  { label: 'Resident 3', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=250' },
-  { label: 'Community Lead', url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&q=80&w=250' },
-  { label: 'Youth Eco', url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80&w=250' },
-  { label: 'Volunteer', url: 'https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&q=80&w=250' },
-];
 
 export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   isOpen,
   onClose,
   currentUser,
   onUpdateUser,
+  theme,
+  onToggleTheme,
 }) => {
   const [fullName, setFullName] = useState(currentUser.fullName || '');
   const [phone, setPhone] = useState(currentUser.phone || '');
-  const [photoUrl, setPhotoUrl] = useState(currentUser.photoUrl || currentUser.avatarUrl || '');
-  const [avatarInputType, setAvatarInputType] = useState<'preset' | 'upload' | 'url'>('preset');
-
-  const [householdHeadName, setHouseholdHeadName] = useState(currentUser.householdHeadName || '');
-  const [householdMembersCount, setHouseholdMembersCount] = useState(currentUser.householdMembersCount || 1);
+  const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl || currentUser.photoUrl || '');
   const [householdAddress, setHouseholdAddress] = useState(currentUser.householdAddress || '');
-  const [householdSegregationType, setHouseholdSegregationType] = useState(
-    currentUser.householdSegregationType || '3-Bin Segregation System'
-  );
-
+  const [householdMembersCount, setHouseholdMembersCount] = useState(currentUser.householdMembersCount || 1);
+  const [householdSegregationType, setHouseholdSegregationType] = useState(currentUser.householdSegregationType || '3-Way (Bio, Recyclable, Residual)');
   const [loading, setLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image file is too large. Please select an image under 5MB.');
-      return;
-    }
-
-    setUploadingImage(true);
-    setError(null);
-
-    try {
-      const downloadUrl = await uploadProfilePicture(file, currentUser.id);
-      setPhotoUrl(downloadUrl);
-    } catch (err: any) {
-      console.error('Failed to upload image to Firebase Storage:', err);
-      setError('Failed to upload profile picture. Please try again.');
-    } finally {
-      setUploadingImage(false);
-    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setAvatarUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccessMsg(null);
+    setSuccess(false);
 
     try {
-      const updates: Partial<User> = {
+      const res = await api.updateProfile(currentUser.id, {
         fullName,
         phone,
-        photoUrl: photoUrl || undefined,
-        avatarUrl: photoUrl || undefined,
-        householdHeadName: householdHeadName || undefined,
-        householdMembersCount: Number(householdMembersCount) || 1,
-        householdAddress: householdAddress || undefined,
+        avatarUrl,
+        householdAddress,
+        householdMembersCount,
         householdSegregationType,
-      };
+      });
 
-      const res = await api.updateProfile(currentUser.id, updates);
       if (res.success && res.user) {
         onUpdateUser(res.user);
-        setSuccessMsg('Profile and photo updated successfully!');
+        setSuccess(true);
         setTimeout(() => {
+          setSuccess(false);
           onClose();
         }, 1200);
+      } else {
+        setError('Failed to update profile settings.');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to update profile.');
+      setError(err.message || 'Error saving changes.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 my-8 animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl">
-              <Camera className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900 dark:text-slate-100">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+              <UserIcon className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Profile & Settings</h2>
-              <p className="text-xs text-slate-500">Update your photo, contact, and household info</p>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">Profile & Household Settings</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Manage your eco-identity and display preferences</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-2xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {successMsg && (
-          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center gap-2">
-            <Check className="w-4 h-4 shrink-0 text-emerald-600" />
-            <span>{successMsg}</span>
+        {success && (
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Profile successfully updated!</span>
           </div>
         )}
 
-        <form onSubmit={handleSaveProfile} className="space-y-4">
-          {/* Profile Picture Upload Section */}
-          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-emerald-600" />
-                Profile Picture (Firebase Storage)
+        {/* Theme Mode Option */}
+        {onToggleTheme && (
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-xl">
+                {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Theme Appearance</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {theme === 'dark' ? 'Dark Mode (Active)' : 'Light Mode (Active)'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className="px-3 py-1.5 bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-600 transition-colors shadow-2xs flex items-center gap-1.5"
+            >
+              {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
+              <span>{theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}</span>
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {/* Avatar section */}
+          <div className="flex items-center space-x-4 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+            <div className="relative">
+              <img
+                src={avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
+                alt={fullName}
+                className="w-16 h-16 rounded-full object-cover ring-2 ring-emerald-500"
+              />
+              <label className="absolute bottom-0 right-0 p-1.5 bg-emerald-600 text-white rounded-full cursor-pointer hover:bg-emerald-700 shadow-md">
+                <Camera className="w-3.5 h-3.5" />
+                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
               </label>
-              {photoUrl && (
-                <button
-                  type="button"
-                  onClick={() => setPhotoUrl('')}
-                  className="text-[11px] text-red-600 hover:text-red-700 font-bold flex items-center gap-0.5"
-                >
-                  <X className="w-3 h-3" /> Remove
-                </button>
-              )}
             </div>
-
-            <div className="flex items-center gap-3">
-              <div className="relative shrink-0">
-                {photoUrl ? (
-                  <img
-                    src={photoUrl}
-                    alt={fullName}
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-2xl bg-slate-200/80 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
-                    <UserIcon className="w-8 h-8" />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 space-y-2">
-                <div className="flex rounded-xl bg-slate-200/60 p-0.5 text-[11px] font-bold text-slate-600">
-                  <button
-                    type="button"
-                    onClick={() => setAvatarInputType('preset')}
-                    className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                      avatarInputType === 'preset' ? 'bg-white text-emerald-800 shadow-xs' : 'hover:text-slate-900'
-                    }`}
-                  >
-                    <Sparkles className="w-3 h-3 text-emerald-600" /> Presets
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAvatarInputType('upload')}
-                    className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                      avatarInputType === 'upload' ? 'bg-white text-emerald-800 shadow-xs' : 'hover:text-slate-900'
-                    }`}
-                  >
-                    <Upload className="w-3 h-3 text-emerald-600" /> Upload
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAvatarInputType('url')}
-                    className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                      avatarInputType === 'url' ? 'bg-white text-emerald-800 shadow-xs' : 'hover:text-slate-900'
-                    }`}
-                  >
-                    <Link className="w-3 h-3 text-emerald-600" /> URL
-                  </button>
-                </div>
-
-                {avatarInputType === 'upload' && (
-                  <div>
-                    <label
-                      className={`cursor-pointer block text-center px-3 py-1.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-800 transition-all shadow-xs ${
-                        uploadingImage ? 'opacity-60 pointer-events-none' : ''
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                        disabled={uploadingImage}
-                      />
-                      {uploadingImage ? 'Uploading to Firebase Storage...' : 'Choose Photo File'}
-                    </label>
-                  </div>
-                )}
-
-                {avatarInputType === 'url' && (
-                  <input
-                    type="url"
-                    placeholder="https://example.com/photo.jpg"
-                    value={photoUrl}
-                    onChange={e => setPhotoUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                )}
+            <div className="flex-1">
+              <div className="font-bold text-slate-900 dark:text-white">{fullName || 'Resident'}</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">Brgy. {currentUser.barangayName}</div>
+              <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                {currentUser.ecoPoints || 0} EcoPoints • Level {Math.floor((currentUser.ecoPoints || 0) / 100) + 1}
               </div>
             </div>
-
-            {avatarInputType === 'preset' && (
-              <div className="pt-1">
-                <p className="text-[10px] font-semibold text-slate-500 mb-1.5">Select a profile avatar:</p>
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                  {PRESET_AVATARS.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setPhotoUrl(preset.url)}
-                      className={`relative shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
-                        photoUrl === preset.url
-                          ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-105'
-                          : 'border-transparent opacity-80 hover:opacity-100 hover:border-slate-300'
-                      }`}
-                    >
-                      <img src={preset.url} alt={preset.label} className="w-10 h-10 object-cover" />
-                      {photoUrl === preset.url && (
-                        <div className="absolute inset-0 bg-emerald-600/30 flex items-center justify-center">
-                          <Check className="w-4 h-4 text-white drop-shadow-xs" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* User Basic Info */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
+          <div className="space-y-1">
+            <label className="font-bold text-slate-700 dark:text-slate-300">Full Name</label>
+            <input
+              type="text"
+              required
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700 dark:text-slate-300">Phone Number</label>
+              <div className="relative">
+                <Phone className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="+63 912 345 6789"
+                  className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700 dark:text-slate-300">Household Members</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={householdMembersCount}
+                onChange={e => setHouseholdMembersCount(parseInt(e.target.value) || 1)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="font-bold text-slate-700 dark:text-slate-300">Household Address / Purok</label>
             <div className="relative">
-              <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <MapPin className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
-                required
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
+                value={householdAddress}
+                onChange={e => setHouseholdAddress(e.target.value)}
+                placeholder="Unit, Street, Purok / Zone"
+                className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
-            <div className="relative">
-              <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="tel"
-                placeholder="+63 912 345 6789"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
-              />
-            </div>
+          <div className="space-y-1">
+            <label className="font-bold text-slate-700 dark:text-slate-300">Waste Segregation Practice</label>
+            <select
+              value={householdSegregationType}
+              onChange={e => setHouseholdSegregationType(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium"
+            >
+              <option value="3-Way (Bio, Recyclable, Residual)">3-Way (Biodegradable, Recyclable, Residual)</option>
+              <option value="4-Way (Bio, Recyclable, Residual, Special/Hazardous)">4-Way (Bio, Recyclable, Residual, Special/Hazardous)</option>
+              <option value="Zero-Waste Household (Composting + Full Recycling)">Zero-Waste Household (Composting + Full Recycling)</option>
+            </select>
           </div>
 
-          {/* Household Details */}
-          <div className="pt-2 border-t border-slate-100 space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Home className="w-3.5 h-3.5 text-emerald-600" /> Household Profile
-            </h3>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">Head of Household</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Juan Dela Cruz"
-                  value={householdHeadName}
-                  onChange={e => setHouseholdHeadName(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">Household Members</label>
-                <div className="relative">
-                  <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={householdMembersCount}
-                    onChange={e => setHouseholdMembersCount(Number(e.target.value))}
-                    className="w-full pl-8 pr-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-600 mb-1">Household Address</label>
-              <div className="relative">
-                <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Street, House No."
-                  value={householdAddress}
-                  onChange={e => setHouseholdAddress(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+              className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading || uploadingImage}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 disabled:opacity-50"
+              disabled={loading}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center space-x-2 shadow-md shadow-emerald-600/20 disabled:opacity-50 transition-all"
             >
-              <Save className="w-3.5 h-3.5" />
-              {loading ? 'Saving...' : 'Save Changes'}
+              <Save className="w-4 h-4" />
+              <span>{loading ? 'Saving...' : 'Save Settings'}</span>
             </button>
           </div>
         </form>

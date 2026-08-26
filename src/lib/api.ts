@@ -121,7 +121,7 @@ export const api = {
   login: (email: string) =>
     safeCall(
       () =>
-        fetchJSON<{ success: boolean; user: User }>('/api/auth/login', {
+        fetchJSON<{ success: boolean; user?: User; message?: string }>('/api/auth/login', {
           method: 'POST',
           body: JSON.stringify({ email }),
         }),
@@ -142,7 +142,7 @@ export const api = {
   }) =>
     safeCall(
       () =>
-        fetchJSON<{ success: boolean; user: User }>('/api/auth/register', {
+        fetchJSON<{ success: boolean; user?: User; message?: string }>('/api/auth/register', {
           method: 'POST',
           body: JSON.stringify(data),
         }),
@@ -152,7 +152,7 @@ export const api = {
   updateProfile: (id: string, updates: Partial<User>) =>
     safeCall(
       () =>
-        fetchJSON<{ success: boolean; user: User }>(`/api/auth/user/${id}`, {
+        fetchJSON<{ success: boolean; user?: User; message?: string }>(`/api/auth/user/${id}`, {
           method: 'PUT',
           body: JSON.stringify(updates),
         }),

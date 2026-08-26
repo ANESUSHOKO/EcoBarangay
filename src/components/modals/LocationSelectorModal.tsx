@@ -132,22 +132,22 @@ export const LocationSelectorModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-2xl">
+            <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 rounded-2xl">
               <MapPin className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-slate-800">Select Barangay Location</h3>
-              <p className="text-xs text-slate-500">Official Philippine Geographic Code (PSGC) Directory</p>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">Select Barangay Location</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Official Philippine Geographic Code (PSGC) Directory</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -155,13 +155,13 @@ export const LocationSelectorModal: React.FC<Props> = ({
 
         <div className="p-6 overflow-y-auto space-y-5 flex-1">
           {/* Automatic Location Detection */}
-          <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
+          <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/60 rounded-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-semibold text-emerald-900 flex items-center gap-1.5">
-                  <Navigation className="w-4 h-4 text-emerald-600" /> Auto-Detect Nearby Barangay
+                <h4 className="text-sm font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                  <Navigation className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Auto-Detect Nearby Barangay
                 </h4>
-                <p className="text-xs text-emerald-700 mt-0.5">Use GPS coordinates to find your nearest local community.</p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Use GPS coordinates to find your nearest local community.</p>
               </div>
               <button
                 onClick={handleDetectLocation}
@@ -173,22 +173,22 @@ export const LocationSelectorModal: React.FC<Props> = ({
               </button>
             </div>
 
-            {geoError && <p className="text-xs text-red-600 font-medium mt-2">{geoError}</p>}
+            {geoError && <p className="text-xs text-red-600 dark:text-red-400 font-medium mt-2">{geoError}</p>}
 
             {detectedNearest && (
-              <div className="mt-3 p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between shadow-sm">
+              <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded-xl border border-emerald-200 dark:border-emerald-700 flex items-center justify-between shadow-sm">
                 <div className="flex-1 pr-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-full">
                       Nearest Match ({detectedNearest.distanceKm} km away)
                     </span>
                   </div>
-                  <div className="text-sm font-bold text-slate-800 mt-1">Brgy. {detectedNearest.barangay.name}</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-sm font-bold text-slate-800 dark:text-white mt-1">Brgy. {detectedNearest.barangay.name}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {detectedNearest.barangay.cityName}, {detectedNearest.barangay.provinceName}
                   </div>
                   {detectedNearest.detectedAddress && (
-                    <div className="text-[11px] text-slate-400 mt-1 line-clamp-1 italic">
+                    <div className="text-[11px] text-slate-400 dark:text-slate-400 mt-1 line-clamp-1 italic">
                       GPS Location: {detectedNearest.detectedAddress}
                     </div>
                   )}
@@ -208,24 +208,24 @@ export const LocationSelectorModal: React.FC<Props> = ({
 
           {/* Search bar */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-3" />
             <input
               type="text"
               placeholder="Search barangay or city name (e.g. Kapitolyo, Pasig)..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
           </div>
 
           {/* Cascading Dropdowns */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Region</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Region</label>
               <select
                 value={selectedRegion}
                 onChange={e => setSelectedRegion(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:border-emerald-500"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               >
                 <option value="">All Regions</option>
                 {regions.map(r => (
@@ -237,11 +237,11 @@ export const LocationSelectorModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Province / District</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Province / District</label>
               <select
                 value={selectedProvince}
                 onChange={e => setSelectedProvince(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:border-emerald-500"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               >
                 <option value="">All Provinces</option>
                 {provinces.map(p => (
@@ -253,11 +253,11 @@ export const LocationSelectorModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">City / Municipality</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">City / Municipality</label>
               <select
                 value={selectedCity}
                 onChange={e => setSelectedCity(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:border-emerald-500"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               >
                 <option value="">All Cities</option>
                 {cities.map(c => (
@@ -271,7 +271,7 @@ export const LocationSelectorModal: React.FC<Props> = ({
 
           {/* Barangay Results Grid */}
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-2">
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">
               Available Barangays ({barangays.length})
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
@@ -286,23 +286,23 @@ export const LocationSelectorModal: React.FC<Props> = ({
                     }}
                     className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                       isSelected
-                        ? 'bg-emerald-50 border-emerald-500 shadow-sm'
-                        : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 shadow-sm'
+                        : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <div>
-                      <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                      <div className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
                         {b.name}
-                        {isSelected && <Check className="w-4 h-4 text-emerald-600" />}
+                        {isSelected && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
                         {b.cityName}, {b.provinceName}
                       </div>
-                      <div className="text-[10px] font-semibold text-emerald-700 mt-1">
+                      <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
                         Rank #{b.score.nationalRank} ({b.score.tier} Tier) • {b.score.totalScore} pts
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
+                    <span className="text-xs font-bold text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-lg">
                       PSGC: {b.psgcCode.substring(0, 6)}
                     </span>
                   </div>
@@ -310,7 +310,7 @@ export const LocationSelectorModal: React.FC<Props> = ({
               })}
 
               {barangays.length === 0 && (
-                <div className="col-span-2 text-center py-8 text-xs text-slate-400">
+                <div className="col-span-2 text-center py-8 text-xs text-slate-400 dark:text-slate-500">
                   No barangays matched your filter criteria.
                 </div>
               )}
@@ -319,10 +319,10 @@ export const LocationSelectorModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl"
+            className="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl"
           >
             Cancel
           </button>
