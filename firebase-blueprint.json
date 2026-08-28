@@ -1,82 +1,183 @@
 {
-  "schemaVersion": "1.0",
-  "collections": [
-    {
-      "name": "users",
-      "description": "User accounts and resident profiles",
-      "documents": [
-        {
-          "id": "user-resident-1",
-          "data": {
-            "email": "juan.dela.cruz@example.ph",
-            "fullName": "Juan Dela Cruz",
-            "role": "RESIDENT",
-            "barangayId": "brgy-kapitolyo",
-            "barangayName": "Kapitolyo",
-            "city": "Pasig City",
-            "province": "Metro Manila",
-            "region": "NCR",
-            "ecoPoints": 350,
-            "householdRegistered": true,
-            "householdHeadName": "Dela Cruz Family",
-            "householdAddress": "#42 West Kapitolyo Drive",
-            "householdMembersCount": 4,
-            "householdSegregationType": "3-Bin Segregation System"
-          }
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User accounts and resident profiles including household registration data and eco points",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the resident or official"
+        },
+        "role": {
+          "type": "string",
+          "description": "User role: RESIDENT, BARANGAY_OFFICIAL, CENRO_OFFICER, ENVIRO_CHAMPION, or SUPER_ADMIN"
+        },
+        "barangayId": {
+          "type": "string",
+          "description": "Identifier for the resident's home barangay"
+        },
+        "barangayName": {
+          "type": "string",
+          "description": "Name of the resident's home barangay"
+        },
+        "city": {
+          "type": "string",
+          "description": "City or municipality"
+        },
+        "province": {
+          "type": "string",
+          "description": "Province name"
+        },
+        "region": {
+          "type": "string",
+          "description": "Region name"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Profile picture URL"
+        },
+        "ecoPoints": {
+          "type": "number",
+          "description": "Total eco reward points accumulated"
+        },
+        "ecoScore": {
+          "type": "number",
+          "description": "Barangay eco compliance score"
+        },
+        "kgRecycled": {
+          "type": "number",
+          "description": "Total kilograms of recyclable waste submitted"
+        },
+        "householdRegistered": {
+          "type": "boolean",
+          "description": "Whether the resident has registered their household"
+        },
+        "householdHeadName": {
+          "type": "string",
+          "description": "Name of the head of the household"
+        },
+        "householdMembersCount": {
+          "type": "number",
+          "description": "Number of residents in the household"
+        },
+        "householdAddress": {
+          "type": "string",
+          "description": "Physical residential address within the barangay"
+        },
+        "householdSegregationType": {
+          "type": "string",
+          "description": "Segregation scheme practiced by household"
+        },
+        "verifiedOfficial": {
+          "type": "boolean",
+          "description": "Whether the user is a verified LGU official"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account registration timestamp"
         }
+      },
+      "required": [
+        "email",
+        "fullName",
+        "role",
+        "barangayId"
       ]
     },
-    {
-      "name": "barangays",
-      "description": "Philippine Barangay sustainability metrics and PSGC data",
-      "documents": [
-        {
-          "id": "brgy-kapitolyo",
-          "data": {
-            "name": "Kapitolyo",
-            "cityCode": "137404",
-            "cityName": "Pasig City",
-            "provinceCode": "137400",
-            "provinceName": "Metro Manila",
-            "regionCode": "130000000",
-            "regionName": "NCR - National Capital Region",
-            "population": 18500,
-            "score": {
-              "totalScore": 92,
-              "wasteManagement": 24,
-              "recycling": 18,
-              "communityParticipation": 19,
-              "reportsResolution": 14,
-              "cleanupActivities": 9,
-              "sustainabilityChallenges": 4,
-              "educationParticipation": 4,
-              "tier": "Platinum",
-              "nationalRank": 1,
-              "regionalRank": 1
-            }
-          }
+    "Barangay": {
+      "title": "Barangay",
+      "description": "Barangay sustainability profile and metrics",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Barangay ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Barangay name"
+        },
+        "cityName": {
+          "type": "string",
+          "description": "City or municipality"
+        },
+        "provinceName": {
+          "type": "string",
+          "description": "Province name"
+        },
+        "population": {
+          "type": "number",
+          "description": "Barangay population"
         }
+      },
+      "required": [
+        "name",
+        "cityName",
+        "provinceName"
       ]
     },
-    {
-      "name": "reports",
-      "description": "Community eco-reports and waste issues"
-    },
-    {
-      "name": "events",
-      "description": "Cleanup drives and barangay green workshops"
-    },
-    {
-      "name": "feedPosts",
-      "description": "Social feed posts and community recycling achievements"
-    },
-    {
-      "name": "schedules",
-      "description": "Garbage and recycling collection schedules"
-    },
-    {
-      "name": "governmentPages",
-      "description": "Official government agency channels (DENR, MMDA, etc.)"
+    "EnvironmentalReport": {
+      "title": "EnvironmentalReport",
+      "description": "Citizen environmental issue report",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique report ID"
+        },
+        "reporterId": {
+          "type": "string",
+          "description": "User ID who reported"
+        },
+        "barangayId": {
+          "type": "string",
+          "description": "Barangay ID where issue occurred"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of violation or dumping"
+        },
+        "status": {
+          "type": "string",
+          "description": "Pending, In Progress, or Resolved"
+        }
+      },
+      "required": [
+        "reporterId",
+        "barangayId",
+        "category",
+        "status"
+      ]
     }
-  ]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of registered user accounts and household profiles"
+    },
+    "/barangays/{barangayId}": {
+      "schema": "Barangay",
+      "description": "Barangay sustainability and ranking data"
+    },
+    "/reports/{reportId}": {
+      "schema": "EnvironmentalReport",
+      "description": "Environmental reports submitted by citizens"
+    }
+  }
 }
+

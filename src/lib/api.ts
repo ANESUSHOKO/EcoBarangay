@@ -133,6 +133,7 @@ export const api = {
     fullName: string;
     role: string;
     barangayId: string;
+    officialPassword?: string;
     phone?: string;
     avatarUrl?: string;
     householdHeadName?: string;

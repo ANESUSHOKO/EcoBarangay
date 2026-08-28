@@ -17,7 +17,12 @@ import {
   Link,
   X,
   Check,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  ShieldAlert,
+  KeyRound
 } from 'lucide-react';
 
 interface AuthPageProps {
@@ -48,6 +53,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [officialPassword, setOfficialPassword] = useState('');
+  const [showOfficialPassword, setShowOfficialPassword] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarInputType, setAvatarInputType] = useState<'preset' | 'upload' | 'url'>('preset');
 
@@ -118,6 +125,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
 
+    if (role === 'BARANGAY_OFFICIAL') {
+      if (!officialPassword.trim()) {
+        setError('Please enter the required authorization password to register as a Barangay Official.');
+        return;
+      }
+      if (officialPassword.trim() !== '123456') {
+        setError('Invalid Barangay Official authorization password. Please check your credentials or contact your LGU.');
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 
@@ -127,6 +145,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         fullName: fullName.trim(),
         role,
         barangayId: selectedBarangay.id,
+        officialPassword: role === 'BARANGAY_OFFICIAL' ? officialPassword.trim() : undefined,
         phone: phone.trim() || undefined,
         avatarUrl: avatarUrl || undefined,
       });
@@ -218,7 +237,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setRole('RESIDENT')}
+                    onClick={() => {
+                      setRole('RESIDENT');
+                      if (error) setError(null);
+                    }}
                     className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
                       role === 'RESIDENT'
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs'
@@ -229,7 +251,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setRole('BARANGAY_OFFICIAL')}
+                    onClick={() => {
+                      setRole('BARANGAY_OFFICIAL');
+                      if (error) setError(null);
+                    }}
                     className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
                       role === 'BARANGAY_OFFICIAL'
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs'
@@ -240,6 +265,42 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Barangay Official Verification Password Requirement */}
+              {role === 'BARANGAY_OFFICIAL' && (
+                <div className="p-4 bg-amber-50/90 rounded-2xl border border-amber-300 space-y-2.5 transition-all">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                      Official Authorization Password <span className="text-red-500">*</span>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Signing up as a Barangay Official requires the official administrative authorization password provided by your local LGU or CENRO office.
+                  </p>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 text-amber-600 absolute left-3.5 top-3" />
+                    <input
+                      type={showOfficialPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Enter official authorization password"
+                      value={officialPassword}
+                      onChange={e => {
+                        setOfficialPassword(e.target.value);
+                        if (error) setError(null);
+                      }}
+                      className="w-full pl-10 pr-10 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 placeholder:text-slate-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOfficialPassword(!showOfficialPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                    >
+                      {showOfficialPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Profile Picture Option */}
               <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">

@@ -59,6 +59,7 @@ async function startServer() {
       fullName,
       role,
       barangayId,
+      officialPassword,
       phone,
       avatarUrl,
       photoUrl,
@@ -70,6 +71,14 @@ async function startServer() {
 
     if (!email || !fullName || !role || !barangayId) {
       return res.status(400).json({ error: 'Missing required registration fields' });
+    }
+
+    if (role === 'BARANGAY_OFFICIAL') {
+      if (!officialPassword || officialPassword.trim() !== '123456') {
+        return res.status(403).json({
+          error: 'Invalid or missing Barangay Official authorization password.'
+        });
+      }
     }
 
     const existing = dbStore.getUserByEmail(email);

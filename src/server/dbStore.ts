@@ -87,9 +87,53 @@ class DBStore {
       } else {
         this.resetToDefaults();
       }
+
+      // Sync existing users from Firestore if present
+      if (firestoreDb) {
+        this.loadUsersFromFirestore().catch(err => {
+          console.warn('Initial Firestore user fetch:', err);
+        });
+      }
     } catch (err) {
       console.error('Failed to load DB file, initializing default dataset:', err);
       this.resetToDefaults();
+    }
+  }
+
+  private async loadUsersFromFirestore() {
+    if (!firestoreDb) return;
+    try {
+      const snap = await firestoreDb.collection('users').get();
+      if (!snap.empty) {
+        snap.forEach(docSnap => {
+          const remoteUser = docSnap.data() as User;
+          if (remoteUser && remoteUser.email) {
+            const idx = this.data.users.findIndex(
+              u => u.id === remoteUser.id || u.email.toLowerCase() === remoteUser.email.toLowerCase()
+            );
+            if (idx >= 0) {
+              this.data.users[idx] = { ...this.data.users[idx], ...remoteUser };
+            } else {
+              this.data.users.push(remoteUser);
+            }
+          }
+        });
+        this.saveLocal();
+        console.log(`Loaded ${snap.size} user accounts from Firestore.`);
+      }
+    } catch (err) {
+      console.error('Error fetching users from Firestore in dbStore:', err);
+    }
+  }
+
+  private saveLocal() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Error writing local DB file:', err);
     }
   }
 
@@ -268,10 +312,25 @@ class DBStore {
     // Update barangay total user count
     const brgy = this.getBarangayById(newUser.barangayId);
     if (brgy) {
-      brgy.totalUsers += 1;
+      brgy.totalUsers = (brgy.totalUsers || 0) + 1;
     }
 
     this.save();
+
+    // Persist immediately to Firestore
+    if (firestoreDb) {
+      firestoreDb
+        .collection('users')
+        .doc(newUser.id)
+        .set(JSON.parse(JSON.stringify(newUser)), { merge: true })
+        .then(() => {
+          console.log(`Successfully stored user account ${newUser.id} (${newUser.email}) in Firestore.`);
+        })
+        .catch(err => {
+          console.error('Error saving user to Firestore in createUser:', err);
+        });
+    }
+
     return newUser;
   }
 
@@ -280,6 +339,17 @@ class DBStore {
     if (user) {
       Object.assign(user, updates);
       this.save();
+
+      // Persist updates to Firestore
+      if (firestoreDb) {
+        firestoreDb
+          .collection('users')
+          .doc(id)
+          .set(JSON.parse(JSON.stringify(user)), { merge: true })
+          .catch(err => {
+            console.error('Error updating user in Firestore:', err);
+          });
+      }
     }
     return user;
   }

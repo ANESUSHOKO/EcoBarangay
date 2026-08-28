@@ -60,8 +60,30 @@ import {
   INITIAL_CALENDAR_EVENTS,
   INITIAL_BARANGAY_IMPROVEMENTS
 } from '../server/initialData';
+import { db } from './firebase';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  collection,
+  getDocFromServer
+} from 'firebase/firestore';
+
+// Test connection on boot
+async function testFirestoreConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn('Firestore client appears to be offline or connecting...');
+    }
+  }
+}
+testFirestoreConnection();
 
 const STORE_VERSION = 'ecobarangay_v2_clean_prod';
+
 if (typeof window !== 'undefined' && localStorage.getItem('ecobarangay_store_version') !== STORE_VERSION) {
   try {
     localStorage.removeItem('ecobarangay_users');
@@ -140,6 +162,34 @@ class ClientStore {
   private calendarEvents: PersonalCalendarEvent[] = loadStorage('ecobarangay_calendarEvents', INITIAL_CALENDAR_EVENTS);
   private improvements: BarangayImprovement[] = loadStorage('ecobarangay_improvements', INITIAL_BARANGAY_IMPROVEMENTS);
 
+  constructor() {
+    this.syncUsersFromFirestore();
+  }
+
+  public async syncUsersFromFirestore() {
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      if (!snap.empty) {
+        snap.forEach(docSnap => {
+          const remoteUser = docSnap.data() as User;
+          if (remoteUser && remoteUser.email) {
+            const idx = this.users.findIndex(
+              u => u.id === remoteUser.id || u.email.toLowerCase() === remoteUser.email.toLowerCase()
+            );
+            if (idx >= 0) {
+              this.users[idx] = { ...this.users[idx], ...remoteUser };
+            } else {
+              this.users.push(remoteUser);
+            }
+          }
+        });
+        this.saveUsers();
+      }
+    } catch (err) {
+      console.warn('ClientStore initial Firestore fetch note:', err);
+    }
+  }
+
   private saveUsers() { saveStorage('ecobarangay_users', this.users); }
   private saveBarangays() { saveStorage('ecobarangay_barangays', this.barangays); }
   private saveFacilities() { saveStorage('ecobarangay_facilities', this.facilities); }
@@ -190,20 +240,40 @@ class ClientStore {
   }
 
   // Auth
-  public login(email: string) {
+  public async login(email: string) {
     const cleanEmail = email.trim().toLowerCase();
-    const user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
+    let user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        snap.forEach(docSnap => {
+          const u = docSnap.data() as User;
+          if (u.email && u.email.toLowerCase() === cleanEmail) {
+            user = u;
+            if (!this.users.some(x => x.id === u.id)) {
+              this.users.push(u);
+              this.saveUsers();
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('Firestore lookup during login:', err);
+      }
+    }
+
     if (!user) {
       return { success: false, message: 'No registered account found with this email. Please register below.' };
     }
     return { success: true, user };
   }
 
-  public register(data: {
+  public async register(data: {
     email: string;
     fullName: string;
     role: string;
     barangayId: string;
+    officialPassword?: string;
     phone?: string;
     avatarUrl?: string;
     householdHeadName?: string;
@@ -211,6 +281,15 @@ class ClientStore {
     householdAddress?: string;
     householdSegregationType?: string;
   }) {
+    if (data.role === 'BARANGAY_OFFICIAL') {
+      if (!data.officialPassword || data.officialPassword.trim() !== '123456') {
+        return {
+          success: false,
+          message: 'Invalid or missing Barangay Official authorization password.'
+        };
+      }
+    }
+
     const cleanEmail = data.email.trim().toLowerCase();
     const existing = this.users.find(u => u.email.toLowerCase() === cleanEmail);
     if (existing) {
@@ -245,20 +324,37 @@ class ClientStore {
     };
     this.users.push(newUser);
     this.saveUsers();
+
+    // Store in Firestore database
+    try {
+      await setDoc(doc(db, 'users', newUser.id), JSON.parse(JSON.stringify(newUser)), { merge: true });
+      console.log(`Stored user account ${newUser.id} directly in Firestore`);
+    } catch (err) {
+      console.error('Error saving user to Firestore in clientStore.register:', err);
+    }
+
     return { success: true, user: newUser };
   }
 
-  public updateProfile(id: string, updates: Partial<User>) {
+  public async updateProfile(id: string, updates: Partial<User>) {
     const index = this.users.findIndex(u => u.id === id);
     if (index !== -1) {
       this.users[index] = { ...this.users[index], ...updates };
       this.saveUsers();
+
+      // Persist to Firestore
+      try {
+        await setDoc(doc(db, 'users', id), JSON.parse(JSON.stringify(this.users[index])), { merge: true });
+      } catch (err) {
+        console.error('Error updating user in Firestore:', err);
+      }
+
       return { success: true, user: this.users[index] };
     }
     return { success: false, message: 'User profile not found' };
   }
 
-  public registerHousehold(id: string, householdData: {
+  public async registerHousehold(id: string, householdData: {
     householdHeadName: string;
     householdMembersCount: number;
     householdAddress: string;
@@ -273,10 +369,19 @@ class ClientStore {
         ecoPoints: (this.users[index].ecoPoints || 0) + 50
       };
       this.saveUsers();
+
+      // Persist to Firestore
+      try {
+        await setDoc(doc(db, 'users', id), JSON.parse(JSON.stringify(this.users[index])), { merge: true });
+      } catch (err) {
+        console.error('Error updating household registration in Firestore:', err);
+      }
+
       return { success: true, user: this.users[index] };
     }
     return { success: false, user: null };
   }
+
 
   public getUserProfile(id: string) {
     const u = this.users.find(user => user.id === id);
