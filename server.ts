@@ -2,6 +2,15 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { dbStore } from './src/server/dbStore';
+import {
+  hashPassword,
+  verifyPassword,
+  createOtpSession,
+  verifyOtpSession,
+  createPasswordResetSession,
+  verifyPasswordResetSession,
+  clearPasswordResetSession,
+} from './src/server/authSecurity';
 
 async function startServer() {
   const app = express();
@@ -36,26 +45,154 @@ async function startServer() {
     res.json(dbStore.getStatsSummary());
   });
 
-  // Auth: Login
+  // Auth: Step 1 - Password Login & OTP Dispatch
   app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Password is required.' });
     }
 
-    const user = dbStore.getUserByEmail(email);
+    const cleanEmail = email.trim().toLowerCase();
+    const user = dbStore.getUserByEmail(cleanEmail);
     if (!user) {
-      return res.status(401).json({ error: 'User not found. Please check your credentials or register.' });
+      return res.status(401).json({ error: 'No account found with this email. Please register below.' });
     }
 
-    // In a production environment, pass hash check here
-    res.json({ success: true, user });
+    // Securely verify password against account hash
+    const isPasswordValid = verifyPassword(password, user.passwordHash);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+    }
+
+    // Password passed! Generate 6-digit email verification OTP
+    const { otp, expiresAt } = createOtpSession(user.email, user.id);
+
+    console.log(`[EcoBarangay Auth] Sent 6-digit OTP [${otp}] to ${user.email}. Expires at ${new Date(expiresAt).toLocaleTimeString()}`);
+
+    return res.json({
+      success: true,
+      requireOtp: true,
+      email: user.email,
+      simulatedOtpCode: otp,
+      message: `A 6-digit verification code has been sent to ${user.email}.`,
+    });
+  });
+
+  // Auth: Step 2 - Verify Email OTP
+  app.post('/api/auth/verify-otp', (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and verification code are required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const result = verifyOtpSession(cleanEmail, String(otp).trim());
+    if (!result.valid) {
+      return res.status(400).json({ error: result.error || 'Invalid verification code. Please try again.' });
+    }
+
+    const user = dbStore.getUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    // Do not send passwordHash back to client
+    const { passwordHash: _, ...safeUser } = user;
+    return res.json({ success: true, user: safeUser as any });
+  });
+
+  // Auth: Resend Email OTP
+  app.post('/api/auth/resend-otp', (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = dbStore.getUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    const { otp } = createOtpSession(user.email, user.id);
+    console.log(`[EcoBarangay Auth] Resent 6-digit OTP [${otp}] to ${user.email}`);
+
+    return res.json({
+      success: true,
+      email: user.email,
+      simulatedOtpCode: otp,
+      message: `A new 6-digit verification code has been sent to ${user.email}.`,
+    });
+  });
+
+  // Auth: Forgot Password - Step 1: Request Reset Code
+  app.post('/api/auth/forgot-password/request', (req, res) => {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Please enter your registered email address.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = dbStore.getUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'No account found with this email address. Please register.' });
+    }
+
+    const { otp, expiresAt } = createPasswordResetSession(user.email, user.id);
+    console.log(`[EcoBarangay Auth] Password Reset OTP [${otp}] generated for ${user.email}. Expires at ${new Date(expiresAt).toLocaleTimeString()}`);
+
+    return res.json({
+      success: true,
+      email: user.email,
+      simulatedOtpCode: otp,
+      message: `A 6-digit password reset code has been sent to ${user.email}.`,
+    });
+  });
+
+  // Auth: Forgot Password - Step 2: Verify Code and Reset Password
+  app.post('/api/auth/forgot-password/reset', (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ error: 'Email, verification code, and new password are required.' });
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const otpValidation = verifyPasswordResetSession(cleanEmail, String(otp).trim());
+    if (!otpValidation.valid) {
+      return res.status(400).json({ error: otpValidation.error || 'Invalid verification code.' });
+    }
+
+    const user = dbStore.getUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    // Securely hash the new password with salt
+    const newPasswordHash = hashPassword(newPassword);
+    dbStore.updateUser(user.id, { passwordHash: newPasswordHash });
+
+    // Clear reset OTP session
+    clearPasswordResetSession(cleanEmail);
+    console.log(`[EcoBarangay Auth] Password successfully updated for ${user.email}`);
+
+    return res.json({
+      success: true,
+      message: 'Your password has been successfully reset. You can now sign in with your new password.',
+    });
   });
 
   // Auth: Register
   app.post('/api/auth/register', (req, res) => {
     const {
       email,
+      password,
       fullName,
       role,
       barangayId,
@@ -70,7 +207,11 @@ async function startServer() {
     } = req.body;
 
     if (!email || !fullName || !role || !barangayId) {
-      return res.status(400).json({ error: 'Missing required registration fields' });
+      return res.status(400).json({ error: 'Missing required registration fields.' });
+    }
+
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ error: 'Please enter a secure password (at least 6 characters).' });
     }
 
     if (role === 'BARANGAY_OFFICIAL') {
@@ -81,9 +222,10 @@ async function startServer() {
       }
     }
 
-    const existing = dbStore.getUserByEmail(email);
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = dbStore.getUserByEmail(cleanEmail);
     if (existing) {
-      return res.status(400).json({ error: 'User with this email already exists.' });
+      return res.status(400).json({ error: 'An account with this email already exists. Please log in.' });
     }
 
     const brgy = dbStore.getBarangayById(barangayId);
@@ -93,15 +235,19 @@ async function startServer() {
 
     const isHouseholdRegistered = Boolean(householdHeadName && householdAddress);
 
+    // Hash password securely with salt
+    const passwordHash = hashPassword(password);
+
     const newUser = dbStore.createUser({
-      email,
-      fullName,
+      email: cleanEmail,
+      fullName: fullName.trim(),
       role,
       barangayId: brgy.id,
       barangayName: brgy.name,
       city: brgy.cityName,
       province: brgy.provinceName,
       region: brgy.regionName,
+      passwordHash,
       phone,
       avatarUrl: photoUrl || avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
       photoUrl: photoUrl || avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
@@ -113,7 +259,8 @@ async function startServer() {
       householdRegistered: isHouseholdRegistered,
     });
 
-    res.status(201).json({ success: true, user: newUser });
+    const { passwordHash: _, ...safeUser } = newUser;
+    res.status(201).json({ success: true, user: safeUser });
   });
 
   // Auth: Update User Profile
@@ -284,6 +431,13 @@ async function startServer() {
   app.patch('/api/reports/:id/status', (req, res) => {
     const { status, notes } = req.body;
     const updated = dbStore.updateReportStatus(req.params.id, status, notes);
+    if (!updated) return res.status(404).json({ error: 'Report not found' });
+    res.json(updated);
+  });
+
+  app.post('/api/reports/:id/upvote', (req, res) => {
+    const { userId } = req.body;
+    const updated = dbStore.upvoteReport(req.params.id, userId);
     if (!updated) return res.status(404).json({ error: 'Report not found' });
     res.json(updated);
   });

@@ -118,18 +118,66 @@ export const api = {
     ),
 
   // Auth
-  login: (email: string) =>
+  login: (email: string, password: string) =>
     safeCall(
       () =>
-        fetchJSON<{ success: boolean; user?: User; message?: string }>('/api/auth/login', {
+        fetchJSON<{
+          success: boolean;
+          requireOtp?: boolean;
+          email?: string;
+          simulatedOtpCode?: string;
+          user?: User;
+          message?: string;
+        }>('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        }),
+      () => clientStore.login(email, password)
+    ),
+
+  verifyOtp: (email: string, otp: string) =>
+    safeCall(
+      () =>
+        fetchJSON<{ success: boolean; user?: User; message?: string }>('/api/auth/verify-otp', {
+          method: 'POST',
+          body: JSON.stringify({ email, otp }),
+        }),
+      () => clientStore.verifyOtp(email, otp)
+    ),
+
+  resendOtp: (email: string) =>
+    safeCall(
+      () =>
+        fetchJSON<{ success: boolean; email?: string; simulatedOtpCode?: string; message?: string }>('/api/auth/resend-otp', {
           method: 'POST',
           body: JSON.stringify({ email }),
         }),
-      () => clientStore.login(email)
+      () => clientStore.resendOtp(email)
+    ),
+
+  requestPasswordReset: (email: string) =>
+    safeCall(
+      () =>
+        fetchJSON<{ success: boolean; email?: string; simulatedOtpCode?: string; message?: string }>('/api/auth/forgot-password/request', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        }),
+      () => clientStore.requestPasswordReset(email)
+    ),
+
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    safeCall(
+      () =>
+        fetchJSON<{ success: boolean; message?: string }>('/api/auth/forgot-password/reset', {
+          method: 'POST',
+          body: JSON.stringify({ email, otp, newPassword }),
+        }),
+      () => clientStore.resetPassword(email, otp, newPassword)
     ),
 
   register: (data: {
     email: string;
+    password?: string;
     fullName: string;
     role: string;
     barangayId: string;
@@ -300,6 +348,16 @@ export const api = {
           body: JSON.stringify({ status, notes }),
         }),
       () => clientStore.updateReportStatus(id, status, notes)
+    ),
+
+  upvoteReport: (id: string, userId?: string) =>
+    safeCall(
+      () =>
+        fetchJSON<EnvironmentalReport>(`/api/reports/${id}/upvote`, {
+          method: 'POST',
+          body: JSON.stringify({ userId }),
+        }),
+      () => clientStore.upvoteReport(id, userId)
     ),
 
   // Events

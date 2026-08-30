@@ -104,13 +104,13 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
       {/* Header Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
+          <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
             Interactive Geographic Directory
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
             {t('mapHeading')}
           </h1>
-          <p className="text-xs text-slate-600 mt-0.5">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
             {t('mapSub')} ({currentBarangay.cityName})
           </p>
         </div>
@@ -126,7 +126,7 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
       </div>
 
       {/* Category Pills Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         {[
           { id: 'all', label: t('allCategories'), emoji: '📍' },
           { id: 'recycling', label: 'Recycling Hubs', emoji: '♻️' },
@@ -140,8 +140,8 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
             onClick={() => setCategory(cat.id)}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all ${
               category === cat.id
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
+                ? 'bg-slate-900 dark:bg-emerald-600 text-white shadow-xs'
+                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
             }`}
           >
             <span>{cat.emoji}</span>
@@ -154,47 +154,49 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Side: Interactive Leaflet Map */}
         <div className="lg:col-span-8 space-y-4">
-          <InteractiveMap
-            facilities={filteredFacilities}
-            reports={reports}
-            events={events}
-            centerLat={selectedFacility ? selectedFacility.lat : currentBarangay.lat}
-            centerLng={selectedFacility ? selectedFacility.lng : currentBarangay.lng}
-            height="560px"
-            onFacilityClick={setSelectedFacility}
-          />
+          <div className="rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+            <InteractiveMap
+              facilities={filteredFacilities}
+              reports={reports}
+              events={events}
+              centerLat={selectedFacility ? selectedFacility.lat : currentBarangay.lat}
+              centerLng={selectedFacility ? selectedFacility.lng : currentBarangay.lng}
+              height="450px"
+              onFacilityClick={setSelectedFacility}
+            />
+          </div>
 
           {/* Selected Facility Detail Card */}
           {selectedFacility && (
-            <div className="bg-white p-6 rounded-3xl border border-emerald-300 shadow-lg space-y-3 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-3xl border border-emerald-300 dark:border-emerald-700 shadow-lg space-y-3 animate-in fade-in duration-200">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                     {selectedFacility.category}
                   </span>
-                  <h3 className="text-lg font-bold text-slate-900 mt-1">{selectedFacility.name}</h3>
-                  <p className="text-xs text-slate-500">{selectedFacility.address}</p>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-1">{selectedFacility.name}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{selectedFacility.address}</p>
                 </div>
                 <button
                   onClick={() => setSelectedFacility(null)}
-                  className="text-xs font-bold text-slate-400 hover:text-slate-600"
+                  className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   Close
                 </button>
               </div>
 
-              <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
                 {selectedFacility.description}
               </p>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div>
-                  <strong className="text-slate-700 block">Accepted Materials:</strong>
-                  <span className="text-slate-600">{selectedFacility.acceptedMaterials.join(', ')}</span>
+                  <strong className="text-slate-700 dark:text-slate-300 block">Accepted Materials:</strong>
+                  <span className="text-slate-600 dark:text-slate-400">{selectedFacility.acceptedMaterials.join(', ')}</span>
                 </div>
                 <div>
-                  <strong className="text-slate-700 block">Hours & Contact:</strong>
-                  <span className="text-slate-600">{selectedFacility.openingHours} • {selectedFacility.contact}</span>
+                  <strong className="text-slate-700 dark:text-slate-300 block">Hours & Contact:</strong>
+                  <span className="text-slate-600 dark:text-slate-400">{selectedFacility.openingHours} • {selectedFacility.contact}</span>
                 </div>
               </div>
             </div>
@@ -202,7 +204,7 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
         </div>
 
         {/* Right Side: Searchable Facility Directory List */}
-        <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4 flex flex-col max-h-[640px]">
+        <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4 flex flex-col max-h-[580px]">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
@@ -210,11 +212,11 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
               placeholder="Search facility name or materials..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
             />
           </div>
 
-          <div className="text-xs font-bold text-slate-500">
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
             Showing {filteredFacilities.length} Facilities Near You
           </div>
 
@@ -227,20 +229,20 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
                   onClick={() => setSelectedFacility(fac)}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-emerald-50 border-emerald-500 shadow-xs'
-                      : 'bg-slate-50 border-slate-200/80 hover:border-emerald-300'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 shadow-xs'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">{fac.name}</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">{fac.name}</span>
                     {fac.distanceKm !== undefined && (
-                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
                         {fac.distanceKm} km
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{fac.address}</p>
-                  <div className="text-[10px] text-slate-600 mt-2 font-medium flex items-center gap-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{fac.address}</p>
+                  <div className="text-[10px] text-slate-600 dark:text-slate-300 mt-2 font-medium flex items-center gap-1">
                     <span>📦 {fac.acceptedMaterials.slice(0, 3).join(', ')}...</span>
                   </div>
                 </div>

@@ -16,16 +16,22 @@ import {
   ShieldCheck,
   Building2,
   ArrowRight,
-  Leaf
+  Leaf,
+  Code2,
+  GraduationCap,
+  Mail,
+  Terminal,
+  Cpu
 } from 'lucide-react';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
   onSelectBarangay: (b: Barangay) => void;
   lang?: Language;
+  onOpenDeveloperInfo?: () => void;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay, lang = 'en' }) => {
+export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay, lang = 'en', onOpenDeveloperInfo }) => {
   const t = (key: any) => getTranslation(lang as Language, key);
   const [stats, setStats] = useState<{
     registeredResidents: number;
@@ -174,20 +180,20 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
           <div>
-            <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-700 mb-1">
+            <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 mb-1">
               {t('honorRollBadge')}
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
               {t('topBarangaysHeading')}
             </h2>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               {t('topBarangaysSub')}
             </p>
           </div>
 
           <button
             onClick={() => onNavigate('rankings')}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto transition-colors"
+            className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto transition-colors"
           >
             <span>{t('viewAllRankings')}</span>
             <ArrowRight className="w-4 h-4" />
@@ -202,38 +208,38 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
                 onSelectBarangay(b);
                 onNavigate('dashboard');
               }}
-              className="bg-white border border-slate-200/80 hover:border-emerald-400 rounded-3xl p-6 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+              className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-3xl p-6 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center">
+                  <span className="w-8 h-8 rounded-xl bg-slate-900 dark:bg-slate-800 text-white font-black text-xs flex items-center justify-center border border-slate-700">
                     #{b.score.nationalRank}
                   </span>
-                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 font-extrabold text-[10px] uppercase tracking-wider rounded-full">
+                  <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 font-extrabold text-[10px] uppercase tracking-wider rounded-full border border-emerald-300 dark:border-emerald-800">
                     {b.score.tier} TIER
                   </span>
                 </div>
 
-                <h3 className="text-lg font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                   Brgy. {b.name}
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                   {b.cityName}, {b.provinceName}
                 </p>
 
-                <div className="my-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
+                <div className="my-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold uppercase">{t('totalScoreLabel')}</span>
-                    <span className="text-base font-black text-emerald-700">{b.score.totalScore} / 100</span>
+                    <span className="text-slate-400 dark:text-slate-500 block text-[10px] font-semibold uppercase">{t('totalScoreLabel')}</span>
+                    <span className="text-base font-black text-emerald-700 dark:text-emerald-400">{b.score.totalScore} / 100</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold uppercase">{t('recycledLabel')}</span>
-                    <span className="text-sm font-bold text-slate-700">{b.totalRecycledKg.toLocaleString()} kg</span>
+                    <span className="text-slate-400 dark:text-slate-500 block text-[10px] font-semibold uppercase">{t('recycledLabel')}</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{b.totalRecycledKg.toLocaleString()} kg</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-700 pt-2 border-t border-slate-100 group-hover:underline">
+              <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-400 pt-2 border-t border-slate-100 dark:border-slate-800 group-hover:underline">
                 <span>{t('exploreBarangayProfile')}</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
@@ -245,58 +251,58 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
       {/* Core Platform Features Grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto mb-12">
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
             {t('howItWorksHeading')}
           </h2>
-          <p className="text-sm text-slate-600 mt-2">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
             {t('howItWorksSub')}
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
               <MapPin className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">{t('featMapTitle')}</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('featMapTitle')}</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               {t('featMapDesc')}
             </p>
             <button
               onClick={() => onNavigate('map')}
-              className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+              className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1"
             >
               {t('exploreMapBtn')} <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-teal-100 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 flex items-center justify-center">
               <Calendar className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">{t('featScheduleTitle')}</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('featScheduleTitle')}</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               {t('featScheduleDesc')}
             </p>
             <button
               onClick={() => onNavigate('schedule')}
-              className="text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1"
+              className="text-xs font-bold text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 flex items-center gap-1"
             >
               {t('navSchedule')} <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 flex items-center justify-center">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">{t('featReportsTitle')}</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('featReportsTitle')}</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               {t('featReportsDesc')}
             </p>
             <button
               onClick={() => onNavigate('reports')}
-              className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1"
+              className="text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1"
             >
               {t('submitReport')} <ChevronRight className="w-4 h-4" />
             </button>
@@ -359,6 +365,55 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
                   {lang === 'tl' ? 'Sumali sa Subok ng Kalikasan' : 'Join Sustainability Challenge'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Developer & Platform Engineering Spotlight */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 p-0.5 shrink-0 shadow-lg shadow-emerald-600/20">
+                <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-white font-black text-lg">
+                  <span className="bg-gradient-to-br from-emerald-300 via-teal-200 to-white bg-clip-text text-transparent">
+                    ALS
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-1 text-left">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
+                  <Code2 className="w-3 h-3" />
+                  <span>Platform Lead & Software Architect</span>
+                </div>
+                <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  Anesu Lancelot Shoko
+                </h4>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <GraduationCap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Centro Escolar University
+                  </span>
+                  <span>•</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                    shoko2314731@ceu.edu.ph
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              {onOpenDeveloperInfo && (
+                <button
+                  type="button"
+                  onClick={onOpenDeveloperInfo}
+                  className="w-full md:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>View Engineering Profile</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

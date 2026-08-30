@@ -160,44 +160,44 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
   return (
     <div
       id={`feed-${post.id}`}
-      className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:shadow-md"
+      className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden transition-all hover:shadow-md"
     >
       {/* Post Author Bar */}
-      <div className="p-5 pb-3 flex items-start justify-between">
+      <div className="p-4 sm:p-5 pb-3 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center shrink-0 overflow-hidden">
             {post.authorAvatar ? (
               <img src={post.authorAvatar} alt={post.authorName} className="w-full h-full object-cover" />
             ) : (
-              <UserIcon className="w-5 h-5 text-emerald-700" />
+              <UserIcon className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
             )}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-sm font-bold text-slate-900">{post.authorName}</h4>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">{post.authorName}</h4>
 
               {isGovPost && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  <Landmark className="w-3 h-3 text-emerald-600" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  <Landmark className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                   Official Govt
                 </span>
               )}
 
               {!isGovPost && post.authorRole === 'BARANGAY_OFFICIAL' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-teal-100 text-teal-800 border border-teal-200">
-                  <ShieldCheck className="w-3 h-3 text-teal-600" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                  <ShieldCheck className="w-3 h-3 text-teal-600 dark:text-teal-400" />
                   Official
                 </span>
               )}
 
               {!isGovPost && post.authorRole === 'SYSTEM_ADMIN' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 text-purple-800 border border-purple-200">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                   Admin
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               <span className="flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-slate-400" />
                 {post.cityName ? `${post.cityName}` : `Brgy. ${post.barangayName}`}
@@ -220,7 +220,7 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
             }}
             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               isUserFollowing
-                ? 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 border border-slate-200'
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-300 hover:border-rose-200 border border-slate-200 dark:border-slate-700'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
             }`}
           >
@@ -240,15 +240,15 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
       </div>
 
       {/* Post Content */}
-      <div className="px-5 py-2">
-        <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+      <div className="px-4 sm:px-5 py-2">
+        <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-line">
           {post.content}
         </p>
 
         {/* Waste Tag Badge */}
         {post.wasteKg && post.wasteKg > 0 && (
-          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-            <Recycle className="w-4 h-4 text-emerald-600" />
+          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold">
+            <Recycle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>
               {t('recyclingMilestone')}: {post.wasteKg} kg {post.wasteType && `(${post.wasteType})`}
             </span>
@@ -269,12 +269,12 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
       )}
 
       {/* Post Action Footer */}
-      <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
+      <div className="px-4 sm:px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
         <div className="flex items-center gap-4">
           <button
             onClick={() => onLike(post.id)}
             className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
-              isLiked ? 'text-rose-600 font-bold' : 'hover:text-rose-600'
+              isLiked ? 'text-rose-600 font-bold' : 'hover:text-rose-600 dark:hover:text-rose-400'
             }`}
           >
             <Heart className={`w-4 h-4 ${isLiked ? 'fill-rose-600 text-rose-600' : ''}`} />
@@ -283,7 +283,7 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
 
           <button
             onClick={() => onToggleComments(post.id)}
-            className="flex items-center gap-1.5 hover:text-emerald-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors cursor-pointer"
           >
             <MessageSquare className="w-4 h-4" />
             <span>{post.comments.length}</span>
@@ -291,7 +291,7 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
 
           <button
             onClick={() => onShare(post.id)}
-            className="flex items-center gap-1.5 hover:text-emerald-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors cursor-pointer"
           >
             <Share2 className="w-4 h-4" />
             <span>{post.sharesCount || 0}</span>
@@ -300,7 +300,7 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
 
         <button
           onClick={() => onToggleComments(post.id)}
-          className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+          className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
         >
           {post.comments.length} {t('commentsCount')}
         </button>
@@ -308,18 +308,18 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
 
       {/* Comment Section Drawer */}
       {isCommentsOpen && (
-        <div className="bg-slate-50/80 border-t border-slate-100 p-4 space-y-3">
+        <div className="bg-slate-50/80 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 p-4 space-y-3">
           {post.comments.length > 0 && (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {post.comments.map(c => (
-                <div key={c.id} className="bg-white p-3 rounded-xl border border-slate-200/70 text-xs">
+                <div key={c.id} className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200/70 dark:border-slate-800 text-xs">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-slate-900">{c.authorName}</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{c.authorName}</span>
                     <span className="text-[10px] text-slate-400">
                       {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-slate-700">{c.content}</p>
+                  <p className="text-slate-700 dark:text-slate-300">{c.content}</p>
                 </div>
               ))}
             </div>
@@ -334,7 +334,7 @@ const FeedPostCard = React.memo<FeedPostCardProps>(({
                 if (e.key === 'Enter') onAddComment(post.id);
               }}
               placeholder={t('writeCommentPlaceholder')}
-              className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              className="flex-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
             <button
               onClick={() => onAddComment(post.id)}

@@ -10,6 +10,7 @@ export interface User {
   city: string;
   province: string;
   region: string;
+  passwordHash?: string;
   phone?: string;
   ecoPoints: number;
   ecoScore: number; // 0 - 100
@@ -107,7 +108,18 @@ export interface Facility {
   reviews?: FacilityReview[];
 }
 
-export type ReportCategory = 'Illegal Dumping' | 'Overflowing Bin' | 'Missed Collection' | 'Clogged Drainage' | 'Hazardous Waste';
+export type ReportCategory =
+  | 'Illegal Dumping'
+  | 'Overflowing Bin'
+  | 'Missed Collection'
+  | 'Clogged Drainage'
+  | 'Hazardous Waste'
+  | 'Open Burning (Siga)'
+  | 'Plastic Pollution'
+  | 'Waterway Contamination'
+  | 'Unsegregated Waste';
+
+export type ReportUrgency = 'Low' | 'Medium' | 'High' | 'Critical';
 export type ReportStatus = 'Pending' | 'In Progress' | 'Resolved' | 'Rejected';
 
 export interface EnvironmentalReport {
@@ -115,6 +127,10 @@ export interface EnvironmentalReport {
   category: ReportCategory;
   description: string;
   locationAddress: string;
+  landmark?: string;
+  tags?: string[];
+  urgency?: ReportUrgency;
+  estimatedVolume?: string;
   lat: number;
   lng: number;
   barangayId: string;
@@ -122,6 +138,7 @@ export interface EnvironmentalReport {
   cityName: string;
   reporterId: string;
   reporterName: string;
+  reporterContact?: string;
   photoUrl?: string;
   beforePhotoUrl?: string;
   afterPhotoUrl?: string;
@@ -132,6 +149,8 @@ export interface EnvironmentalReport {
   resolutionDate?: string;
   officialAction?: string;
   officialNotes?: string;
+  upvotesCount?: number;
+  upvotedUserIds?: string[];
   reopenRequest?: {
     residentAnswer: 'YES' | 'NO';
     reason?: string;
@@ -270,7 +289,7 @@ export interface GlobalSearchResults {
 
 export interface AppNotification {
   id: string;
-  type: 'EVENT_SIGNUP' | 'REPORT_UPDATE' | 'RANKING_CHANGE' | 'ANNOUNCEMENT' | 'PROJECT_UPDATE' | 'ALERT';
+  type: 'SCHEDULE' | 'ANNOUNCEMENT' | 'ALERT' | 'EVENT_SIGNUP' | 'REPORT_UPDATE' | 'RANKING_CHANGE' | 'PROJECT_UPDATE';
   title: string;
   message: string;
   timestamp: string;

@@ -476,10 +476,10 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
       {/* 2. Top Action Bar: View Switcher, Category Filters, and Action Buttons */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-2xs">
         {/* Left: View Mode Tabs */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80 overflow-x-auto">
+        <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80 overflow-x-auto no-scrollbar max-w-full">
           <button
             onClick={() => setViewMode('month')}
-            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               viewMode === 'month'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -491,7 +491,7 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
 
           <button
             onClick={() => setViewMode('week')}
-            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               viewMode === 'week'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -503,7 +503,7 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
 
           <button
             onClick={() => setViewMode('agenda')}
-            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               viewMode === 'agenda'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -515,7 +515,7 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
 
           <button
             onClick={() => setViewMode('timetable')}
-            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+            className={`flex items-center space-x-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               viewMode === 'timetable'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -665,102 +665,107 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
               </div>
             </div>
 
-            {/* CSS Grid Calendar: 7 Weekday Columns */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-black text-slate-500 py-1 border-b border-slate-100">
-              {DAY_SHORT.map((day, idx) => (
-                <div key={day} className={`py-1 ${idx === 0 || idx === 6 ? 'text-emerald-700' : ''}`}>
-                  <span className="hidden sm:inline">{DAY_NAMES[idx]}</span>
-                  <span className="sm:hidden">{day}</span>
+            {/* Calendar Scrollable Wrapper for Mobile Responsiveness */}
+            <div className="overflow-x-auto no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
+              <div className="min-w-[500px] sm:min-w-0">
+                {/* CSS Grid Calendar: 7 Weekday Columns */}
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-black text-slate-500 py-1 border-b border-slate-100">
+                  {DAY_SHORT.map((day, idx) => (
+                    <div key={day} className={`py-1 ${idx === 0 || idx === 6 ? 'text-emerald-700' : ''}`}>
+                      <span className="hidden sm:inline">{DAY_NAMES[idx]}</span>
+                      <span className="sm:hidden">{day}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* CSS Grid: Calendar Day Cells */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
-              {calendarGridDays.map(cell => {
-                const dayItems = getItemsForDate(cell.dateStr);
-                const isSelected = selectedDate === cell.dateStr;
-                const isToday = formatTodayStr === cell.dateStr;
+                {/* CSS Grid: Calendar Day Cells */}
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 mt-2">
+                  {calendarGridDays.map(cell => {
+                    const dayItems = getItemsForDate(cell.dateStr);
+                    const isSelected = selectedDate === cell.dateStr;
+                    const isToday = formatTodayStr === cell.dateStr;
 
-                return (
-                  <div
-                    key={cell.dateStr}
-                    onClick={() => setSelectedDate(cell.dateStr)}
-                    className={`min-h-[85px] sm:min-h-[110px] p-1.5 sm:p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group relative ${
-                      isSelected
-                        ? 'border-emerald-600 ring-2 ring-emerald-500/30 bg-emerald-50/20 shadow-xs'
-                        : cell.isCurrentMonth
-                        ? 'border-slate-200/80 bg-white hover:border-emerald-300 hover:bg-slate-50/70'
-                        : 'border-slate-100 bg-slate-50/50 text-slate-400 opacity-60'
-                    }`}
-                  >
-                    {/* Date Number Header */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold ${
-                          isToday
-                            ? 'bg-emerald-600 text-white font-black shadow-xs'
-                            : isSelected
-                            ? 'text-emerald-700 font-black'
+                    return (
+                      <div
+                        key={cell.dateStr}
+                        onClick={() => setSelectedDate(cell.dateStr)}
+                        className={`min-h-[85px] sm:min-h-[110px] p-1.5 sm:p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group relative ${
+                          isSelected
+                            ? 'border-emerald-600 ring-2 ring-emerald-500/30 bg-emerald-50/20 shadow-xs'
                             : cell.isCurrentMonth
-                            ? 'text-slate-800'
-                            : 'text-slate-400'
+                            ? 'border-slate-200/80 bg-white hover:border-emerald-300 hover:bg-slate-50/70'
+                            : 'border-slate-100 bg-slate-50/50 text-slate-400 opacity-60'
                         }`}
                       >
-                        {cell.dayNumber}
-                      </span>
-
-                      {/* Quick Add icon on cell hover */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setModalDate(cell.dateStr);
-                          setSelectedDate(cell.dateStr);
-                          setIsAddModalOpen(true);
-                        }}
-                        title="Add eco reminder for this day"
-                        className="opacity-0 group-hover:opacity-100 p-1 text-emerald-600 hover:bg-emerald-100 rounded-md transition-opacity"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    {/* Day Badges Container */}
-                    <div className="space-y-1 mt-1 overflow-hidden">
-                      {dayItems.slice(0, 2).map((item) => (
-                        <div
-                          key={item.id}
-                          className={`text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-lg border truncate flex items-center gap-1 ${getItemBadgeStyle(
-                            item.type
-                          )}`}
-                          title={`${item.title} (${item.time || ''})`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getItemDotColor(item.type)}`} />
-                          <span className="truncate">{item.title}</span>
-                        </div>
-                      ))}
-
-                      {dayItems.length > 2 && (
-                        <div className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 px-1">
-                          +{dayItems.length - 2} more
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bottom active dot indicator if any items */}
-                    {dayItems.length > 0 && (
-                      <div className="flex items-center justify-center gap-0.5 mt-1 sm:hidden">
-                        {dayItems.slice(0, 3).map((item) => (
+                        {/* Date Number Header */}
+                        <div className="flex items-center justify-between">
                           <span
-                            key={item.id}
-                            className={`w-1 h-1 rounded-full ${getItemDotColor(item.type)}`}
-                          />
-                        ))}
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold ${
+                              isToday
+                                ? 'bg-emerald-600 text-white font-black shadow-xs'
+                                : isSelected
+                                ? 'text-emerald-700 font-black'
+                                : cell.isCurrentMonth
+                                ? 'text-slate-800'
+                                : 'text-slate-400'
+                            }`}
+                          >
+                            {cell.dayNumber}
+                          </span>
+
+                          {/* Quick Add icon on cell hover */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModalDate(cell.dateStr);
+                              setSelectedDate(cell.dateStr);
+                              setIsAddModalOpen(true);
+                            }}
+                            title="Add eco reminder for this day"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-emerald-600 hover:bg-emerald-100 rounded-md transition-opacity"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Day Badges Container */}
+                        <div className="space-y-1 mt-1 overflow-hidden">
+                          {dayItems.slice(0, 2).map((item) => (
+                            <div
+                              key={item.id}
+                              className={`text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-lg border truncate flex items-center gap-1 ${getItemBadgeStyle(
+                                item.type
+                              )}`}
+                              title={`${item.title} (${item.time || ''})`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getItemDotColor(item.type)}`} />
+                              <span className="truncate">{item.title}</span>
+                            </div>
+                          ))}
+
+                          {dayItems.length > 2 && (
+                            <div className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 px-1">
+                              +{dayItems.length - 2} more
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bottom active dot indicator if any items */}
+                        {dayItems.length > 0 && (
+                          <div className="flex items-center justify-center gap-0.5 mt-1 sm:hidden">
+                            {dayItems.slice(0, 3).map((item) => (
+                              <span
+                                key={item.id}
+                                className={`w-1 h-1 rounded-full ${getItemDotColor(item.type)}`}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Legend */}

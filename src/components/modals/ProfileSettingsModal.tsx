@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User } from '../../types';
 import { api } from '../../lib/api';
 import { ThemeMode } from '../../lib/theme';
-import { X, User as UserIcon, Phone, MapPin, Camera, Save, CheckCircle2, AlertCircle, Moon, Sun } from 'lucide-react';
+import { X, User as UserIcon, Phone, MapPin, Camera, Save, CheckCircle2, AlertCircle, Moon, Sun, Code2 } from 'lucide-react';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface ProfileSettingsModalProps {
   onUpdateUser: (user: User) => void;
   theme?: ThemeMode;
   onToggleTheme?: () => void;
+  onOpenDeveloperInfo?: () => void;
 }
 
 export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
@@ -20,6 +21,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   onUpdateUser,
   theme,
   onToggleTheme,
+  onOpenDeveloperInfo,
 }) => {
   const [fullName, setFullName] = useState(currentUser.fullName || '');
   const [phone, setPhone] = useState(currentUser.phone || '');
@@ -226,6 +228,32 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               <option value="Zero-Waste Household (Composting + Full Recycling)">Zero-Waste Household (Composting + Full Recycling)</option>
             </select>
           </div>
+
+          {/* Developer & Platform Credits */}
+          {onOpenDeveloperInfo && (
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Code2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Anesu Lancelot Shoko
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Lead Software Engineer & Architect
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenDeveloperInfo}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition-colors"
+              >
+                View Profile
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button

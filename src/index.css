@@ -13,6 +13,14 @@
     --card: #ffffff;
   }
 
+  html,
+  body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .dark {
     --primary: #10b981;
     --primary-dark: #059669;

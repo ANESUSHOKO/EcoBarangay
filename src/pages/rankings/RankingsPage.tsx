@@ -28,17 +28,17 @@ const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
 }) => {
   return (
     <div className="bg-white rounded-3xl border border-slate-200/80 hover:border-emerald-300 transition-all shadow-2xs overflow-hidden">
-      <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <span className="w-10 h-10 rounded-2xl bg-slate-900 text-white font-black text-sm flex items-center justify-center shrink-0">
+      <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 min-w-0">
+          <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-slate-900 text-white font-black text-xs sm:text-sm flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
             #{b.score.nationalRank}
           </span>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">Brgy. {b.name}</h3>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <h3 className="text-base font-bold text-slate-900 truncate">Brgy. {b.name}</h3>
               <span
-                className={`status-chip ${
+                className={`status-chip text-[10px] sm:text-xs py-0.5 px-2 ${
                   b.score.tier === 'Platinum'
                     ? 'rank-platinum'
                     : b.score.tier === 'Gold'
@@ -51,16 +51,16 @@ const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
                 {b.score.tier} TIER
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
+            <p className="text-xs text-slate-500 font-medium mt-0.5 line-clamp-2 sm:line-clamp-1">
               {b.cityName}, {b.provinceName} ({b.regionName}) • Pop: {b.population.toLocaleString()}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-6 justify-between md:justify-end">
-          <div className="text-right">
+        <div className="flex items-center gap-4 sm:gap-6 justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+          <div className="text-left md:text-right">
             <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Score</span>
-            <span className="text-xl font-black text-emerald-700">{b.score.totalScore} / 100</span>
+            <span className="text-lg sm:text-xl font-black text-emerald-700">{b.score.totalScore} / 100</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -69,14 +69,14 @@ const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
                 onSelectBarangay(b);
                 onNavigate('dashboard');
               }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              className="px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
             >
               View Profile
             </button>
 
             <button
               onClick={() => onToggleExpand(b.id)}
-              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer"
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer shrink-0"
               title="Toggle 100-pt Score Breakdown"
             >
               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}

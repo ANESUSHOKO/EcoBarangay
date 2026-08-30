@@ -494,6 +494,24 @@ class DBStore {
     return report;
   }
 
+  public upvoteReport(id: string, userId?: string) {
+    const report = this.data.reports.find(r => r.id === id);
+    if (report) {
+      if (!report.upvotedUserIds) report.upvotedUserIds = [];
+      const userKey = userId || 'anonymous-user';
+      if (report.upvotedUserIds.includes(userKey)) {
+        report.upvotedUserIds = report.upvotedUserIds.filter(u => u !== userKey);
+        report.upvotesCount = Math.max(0, (report.upvotesCount || 1) - 1);
+      } else {
+        report.upvotedUserIds.push(userKey);
+        report.upvotesCount = (report.upvotesCount || 0) + 1;
+      }
+      this.save();
+      return report;
+    }
+    return null;
+  }
+
   // Events
   public getEvents(barangayId?: string) {
     let list = this.data.events;

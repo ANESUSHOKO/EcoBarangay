@@ -228,8 +228,12 @@ export const InteractiveMap: React.FC<MapProps> = ({
   }, [facilities, reports, events, onFacilityClick, onReportClick, onEventClick]);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-      <div ref={mapContainerRef} style={{ height }} className="w-full z-0" />
+    <div className="relative w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-w-full">
+      <div
+        ref={mapContainerRef}
+        style={{ height }}
+        className="w-full z-0 min-h-[340px] max-h-[70vh] sm:max-h-none"
+      />
     </div>
   );
 };

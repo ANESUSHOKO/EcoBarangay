@@ -30,7 +30,15 @@ import {
   Settings,
   User as UserIcon,
   Sun,
-  Moon
+  Moon,
+  Code2,
+  Menu,
+  Home,
+  MessageSquare,
+  Map,
+  Clock,
+  ExternalLink,
+  ChevronRight
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -41,6 +49,7 @@ interface NavbarProps {
   onOpenLocationModal: () => void;
   onOpenGuideModal: () => void;
   onOpenProfileSettings?: () => void;
+  onOpenDeveloperInfo?: () => void;
   onLogout: () => void;
   lang: Language;
   onToggleLang: () => void;
@@ -57,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenLocationModal,
   onOpenGuideModal,
   onOpenProfileSettings,
+  onOpenDeveloperInfo,
   onLogout,
   lang,
   onToggleLang,
@@ -171,43 +181,56 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const navItems = [
-    { id: 'home', label: t('navHome') },
-    { id: 'feed', label: t('navFeed') },
-    { id: 'dashboard', label: t('navDashboard') },
-    { id: 'map', label: t('navMap') },
-    { id: 'rankings', label: t('navRankings') },
-    { id: 'reports', label: t('navReports') },
-    { id: 'events', label: t('navEvents') },
-    { id: 'schedule', label: t('navSchedule') },
+    { id: 'home', label: t('navHome'), icon: Home, desc: 'Overview & Barangay score' },
+    { id: 'feed', label: t('navFeed'), icon: MessageSquare, desc: 'Discussions & eco community' },
+    { id: 'dashboard', label: t('navDashboard'), icon: Building2, desc: 'Waste metrics & action logs' },
+    { id: 'map', label: t('navMap'), icon: Map, desc: 'MRF & junk shop locators' },
+    { id: 'rankings', label: t('navRankings'), icon: Trophy, desc: 'National 100-pt leaderboard' },
+    { id: 'reports', label: t('navReports'), icon: AlertTriangle, desc: 'Report dumping & hazards' },
+    { id: 'events', label: t('navEvents'), icon: Calendar, desc: 'Cleanups, tree planting & points' },
+    { id: 'schedule', label: t('navSchedule'), icon: Clock, desc: 'Collection calendar & alerts' },
   ];
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shadow-xs transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-3">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-3">
           
-          {/* Brand Logo */}
-          <div
-            onClick={() => setActiveTab('home')}
-            className="flex items-center space-x-2.5 cursor-pointer group shrink-0"
-          >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl eco-gradient flex items-center justify-center text-white shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform shrink-0">
-              <Leaf className="w-5 h-5 sm:w-6 sm:h-6 fill-white/20 shrink-0" />
+          {/* Left: Brand Logo */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <div
+              onClick={() => setActiveTab('home')}
+              className="flex items-center space-x-2 cursor-pointer group shrink-0"
+            >
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl eco-gradient flex items-center justify-center text-white shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform shrink-0">
+                <Leaf className="w-4 h-4 sm:w-5 sm:h-5 fill-white/20 shrink-0" />
+              </div>
+              <div className="hidden sm:block whitespace-nowrap shrink-0">
+                <span className="text-sm sm:text-base font-black tracking-tight text-slate-800 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors leading-none block">
+                  Eco<span className="text-emerald-600 dark:text-emerald-400">Barangay</span>
+                </span>
+                <span className="block text-[8px] font-bold tracking-widest uppercase text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {lang === 'tl' ? 'Mas Malinis na Barangay' : 'Sustainable Philippines'}
+                </span>
+              </div>
             </div>
-            <div className="hidden sm:block whitespace-nowrap shrink-0">
-              <span className="text-base sm:text-lg font-black tracking-tight text-slate-800 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors leading-none block">
-                Eco<span className="text-emerald-600 dark:text-emerald-400">Barangay</span>
-              </span>
-              <span className="block text-[9px] font-bold tracking-widest uppercase text-emerald-600 dark:text-emerald-400 mt-0.5">
-                {lang === 'tl' ? 'Mas Malinis na Barangay' : 'Sustainable Philippines'}
-              </span>
-            </div>
+
+            {/* Barangay Switcher Pill (Desktop / Computer view) */}
+            <button
+              onClick={onOpenLocationModal}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/90 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-200 hover:text-emerald-800 dark:hover:text-emerald-300 rounded-xl text-xs font-bold border border-slate-200/80 dark:border-slate-700 transition-all shrink-0 max-w-[190px]"
+              title="Switch Active Barangay"
+            >
+              <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="truncate">{currentBarangay ? `Brgy. ${currentBarangay.name}` : t('selectBarangay')}</span>
+              <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+            </button>
           </div>
 
-          {/* Global Search Bar */}
-          <div className="relative flex-1 min-w-[120px] max-w-xs sm:max-w-sm md:max-w-md mx-1 sm:mx-2" ref={searchRef}>
+          {/* Center: Global Search Bar */}
+          <div className="relative flex-1 min-w-[90px] sm:min-w-[130px] max-w-xs sm:max-w-sm md:max-w-md mx-0.5 sm:mx-1" ref={searchRef}>
             <div className="relative flex items-center">
-              <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 pointer-events-none shrink-0" />
+              <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-2.5 sm:left-3 pointer-events-none shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
@@ -216,10 +239,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   if (searchResults) setShowSearchDropdown(true);
                 }}
                 placeholder={t('navSearchPlaceholder')}
-                className="w-full bg-slate-100/90 dark:bg-slate-800/90 focus:bg-white dark:focus:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 pl-9 pr-8 py-2 rounded-xl border border-slate-200 dark:border-slate-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-hidden transition-all truncate"
+                className="w-full bg-slate-100/90 dark:bg-slate-800/90 focus:bg-white dark:focus:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 pl-7 sm:pl-9 pr-7 sm:pr-8 py-1.5 sm:py-2 rounded-xl border border-slate-200 dark:border-slate-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-hidden transition-all truncate"
               />
               {isSearching ? (
-                <Loader2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 animate-spin absolute right-3 shrink-0" />
+                <Loader2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 animate-spin absolute right-2.5 shrink-0" />
               ) : searchQuery ? (
                 <button
                   onClick={() => {
@@ -227,9 +250,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setSearchResults(null);
                     setShowSearchDropdown(false);
                   }}
-                  className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"
+                  className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3" />
                 </button>
               ) : null}
             </div>
@@ -344,50 +367,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Navigation Links (Desktop 2XL screens) */}
-          <nav className="hidden 2xl:flex items-center space-x-1 shrink-0">
-            {navItems.map(item => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Right Action Bar */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          {/* Right Action Bar: Compact, clean, and never overflows */}
+          <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
             
             {/* Dark Mode Quick Toggle */}
             {onToggleTheme && (
               <button
                 onClick={onToggleTheme}
-                className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 rounded-xl transition-all border border-slate-200/80 dark:border-slate-700 flex items-center justify-center group shrink-0"
+                className="p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 rounded-xl transition-all border border-slate-200/80 dark:border-slate-700 flex items-center justify-center group shrink-0"
                 title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 aria-label="Toggle theme"
                 id="nav-theme-toggle"
               >
                 {theme === 'dark' ? (
-                  <Sun className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform duration-300 shrink-0" />
+                  <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 group-hover:rotate-45 transition-transform duration-300 shrink-0" />
                 ) : (
-                  <Moon className="w-4 h-4 text-slate-600 group-hover:-rotate-12 transition-transform duration-300 shrink-0" />
+                  <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 group-hover:-rotate-12 transition-transform duration-300 shrink-0" />
                 )}
               </button>
             )}
 
-            {/* Language Toggle Button */}
+            {/* Language Toggle Button (Hidden on extra small screens, accessible via dropdown menu) */}
             <button
               onClick={onToggleLang}
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-200/80 dark:border-slate-700 whitespace-nowrap shrink-0"
+              className="hidden xs:flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-200/80 dark:border-slate-700 whitespace-nowrap shrink-0"
               title="Switch Language / Palitan ang Wika"
             >
               <Globe className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -395,7 +398,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="sm:hidden whitespace-nowrap">{lang === 'tl' ? '🇵🇭' : '🇺🇸'}</span>
             </button>
 
-            {/* RA 9003 Guide Button */}
+            {/* RA 9003 Guide Button (Desktop only) */}
             <button
               onClick={onOpenGuideModal}
               className="hidden lg:flex items-center space-x-1.5 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0"
@@ -405,18 +408,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="whitespace-nowrap">{t('guideButton')}</span>
             </button>
 
-            {/* Location Selector Pill */}
-            <button
-              onClick={onOpenLocationModal}
-              className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-200 hover:text-emerald-800 dark:hover:text-emerald-300 border border-slate-200/80 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0"
-              title="Change active Barangay"
-            >
-              <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="truncate max-w-[90px] sm:max-w-[110px] whitespace-nowrap">
-                {currentBarangay ? currentBarangay.name : t('selectBarangay')}
-              </span>
-            </button>
-
             {/* Notification Bell Button & Dropdown */}
             <div className="relative" ref={notifRef}>
               <button
@@ -424,13 +415,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setNotifDropdownOpen(!notifDropdownOpen);
                   if (!notifDropdownOpen) fetchNotifications();
                 }}
-                className="relative p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition-all border border-slate-200/80 dark:border-slate-700 flex items-center justify-center group"
+                className="relative p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition-all border border-slate-200/80 dark:border-slate-700 flex items-center justify-center group shrink-0"
                 title={t('notificationsHeading')}
                 id="nav-notification-bell"
               >
-                <Bell className={`w-4 h-4 transition-transform group-hover:rotate-12 ${unreadNotifCount > 0 ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-slate-600 dark:text-slate-300'}`} />
+                <Bell className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:rotate-12 ${unreadNotifCount > 0 ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-slate-600 dark:text-slate-300'}`} />
                 {unreadNotifCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow-xs">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow-xs">
                     {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
                   </span>
                 )}
@@ -438,7 +429,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Notifications Dropdown Modal */}
               {notifDropdownOpen && (
-                <div className="absolute -right-10 sm:right-0 mt-2 w-[310px] sm:w-96 max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="absolute -right-10 sm:right-0 mt-2 w-[310px] sm:w-96 max-w-[calc(100vw-1rem)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                   
                   {/* Header */}
                   <div className="p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
@@ -594,24 +585,33 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* User Profile / Account Details */}
+            {/* User Profile / Account Details (When Logged In) OR Sign In Icon Button (When Not Logged In) */}
             {currentUser ? (
               <div className="relative">
                 <button
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center space-x-2 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-slate-800 transition-all shadow-2xs"
+                  className="flex items-center space-x-1.5 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-slate-800 transition-all shadow-2xs shrink-0"
+                  title="Profile & Account Settings"
+                  aria-label="User Profile"
+                  id="nav-user-profile-button"
                 >
-                  <img
-                    src={currentUser.photoUrl || currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-                    alt={currentUser.fullName}
-                    className="w-8 h-8 rounded-xl object-cover ring-2 ring-emerald-500/20"
-                  />
+                  {currentUser.photoUrl || currentUser.avatarUrl ? (
+                    <img
+                      src={currentUser.photoUrl || currentUser.avatarUrl}
+                      alt={currentUser.fullName}
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl object-cover ring-2 ring-emerald-500/20 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-xs shrink-0">
+                      <UserIcon className="w-4 h-4 shrink-0" />
+                    </div>
+                  )}
                   <div className="text-left hidden xl:block pr-1">
                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200 line-clamp-1 flex items-center gap-1">
                       {currentUser.fullName}
                     </div>
                   </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
                 </button>
 
                 {/* Account Details Dropdown */}
@@ -669,6 +669,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       )}
 
+                      {onOpenDeveloperInfo && (
+                        <button
+                          onClick={() => {
+                            onOpenDeveloperInfo();
+                            setUserDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-800 dark:hover:text-emerald-300 rounded-xl flex items-center space-x-2 transition-colors"
+                        >
+                          <Code2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>Developer Information</span>
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           onLogout();
@@ -686,29 +699,60 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 onClick={() => setActiveTab('auth')}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all shrink-0"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-extrabold shadow-xs transition-all shrink-0 whitespace-nowrap"
+                title={t('navSignIn')}
+                aria-label="Sign In"
+                id="nav-signin-button"
               >
-                {t('navSignIn')}
+                <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="hidden sm:inline whitespace-nowrap">{t('navSignIn')}</span>
               </button>
             )}
           </div>
         </div>
-
-        {/* Responsive Navigation Row for screens below 2XL */}
-        <div className="flex 2xl:hidden items-center justify-start py-2 border-t border-slate-100 dark:border-slate-800 overflow-x-auto gap-1.5 no-scrollbar">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
-                activeTab === item.id ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
       </div>
+
+      {/* Primary Desktop / Computer Navigation Bar (Visible on md, lg, xl screens) */}
+      <nav className="hidden md:block border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-11">
+            {/* Desktop Navigation Links */}
+            <div className="flex items-center space-x-1 lg:space-x-2 overflow-x-auto py-1 scrollbar-none">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 select-none ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-xs font-black'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800'
+                    }`}
+                    id={`desktop-nav-${item.id}`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[2]'}`} />
+                    <span className="whitespace-nowrap">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Desktop Quick Eco Indicator */}
+            {currentBarangay && (
+              <div className="hidden xl:flex items-center gap-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-extrabold">
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>National Rank #{currentBarangay.score.nationalRank}</span>
+                </span>
+                <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+                <span>Cleanliness Score: {currentBarangay.score.totalScore}/100</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </nav>
     </header>
   );
 };
