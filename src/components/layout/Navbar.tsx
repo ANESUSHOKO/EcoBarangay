@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Notifications State
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
-  const [notifFilter, setNotifFilter] = useState<'ALL' | 'EVENT_SIGNUP' | 'REPORT_UPDATE' | 'RANKING_CHANGE'>('ALL');
+  const [notifFilter, setNotifFilter] = useState<'ALL' | 'EVENT_SIGNUP' | 'REPORT_UPDATE' | 'RANKING_CHANGE' | 'ANNOUNCEMENT'>('ALL');
   const notifRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
@@ -496,6 +496,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }`}
                     >
                       🏆 {t('notifFilterRanking')}
+                    </button>
+                    <button
+                      onClick={() => setNotifFilter('ANNOUNCEMENT')}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                        notifFilter === 'ANNOUNCEMENT'
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      📢 Announcements
                     </button>
                   </div>
 

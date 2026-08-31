@@ -23,6 +23,8 @@ import {
   X,
   Home,
   ShieldCheck,
+  User as UserIcon,
+  UserCheck,
 } from 'lucide-react';
 import { RegisterHouseholdModal } from '../../components/modals';
 
@@ -106,11 +108,17 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
       <div className="bg-gradient-to-r from-emerald-900 via-slate-900 to-teal-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center space-x-4">
-            <img
-              src={currentUser.photoUrl || currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
-              alt={currentUser.fullName}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-4 ring-emerald-500/30 shadow-lg"
-            />
+            {currentUser.photoUrl || currentUser.avatarUrl ? (
+              <img
+                src={currentUser.photoUrl || currentUser.avatarUrl}
+                alt={currentUser.fullName}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-4 ring-emerald-500/30 shadow-lg"
+              />
+            ) : (
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-emerald-800/80 text-emerald-200 ring-4 ring-emerald-500/30 shadow-lg flex items-center justify-center">
+                <UserCheck className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-300" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl sm:text-3xl font-black">{currentUser.fullName}</h1>

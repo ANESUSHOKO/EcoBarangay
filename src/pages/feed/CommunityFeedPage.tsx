@@ -543,14 +543,36 @@ export function CommunityFeedPage({ currentUser, currentBarangay, lang, onNaviga
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoUrl(reader.result as string);
-        setShowPhotoPicker(false);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Reject GIF format explicitly (TC_REPORT_04)
+    if (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) {
+      alert(lang === 'tl' ? 'Hindi suportado ang format na GIF. Mangyaring gumamit ng JPG, PNG, o WEBP.' : 'GIF format is not supported. Please choose a JPG, PNG, or WEBP image.');
+      e.target.value = '';
+      return;
     }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const validExtensions = /\.(jpe?g|png|webp)$/i;
+
+    if (!allowedTypes.includes(file.type) && !validExtensions.test(file.name)) {
+      alert(lang === 'tl' ? 'Di-wastong format ng larawan. JPG, PNG, at WEBP lamang.' : 'Invalid file format. Only JPG, PNG, and WEBP image files are allowed.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert(lang === 'tl' ? 'Sobra sa 5MB ang laki ng larawan.' : 'Image size exceeds 5MB limit.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoUrl(reader.result as string);
+      setShowPhotoPicker(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -809,7 +831,7 @@ export function CommunityFeedPage({ currentUser, currentBarangay, lang, onNaviga
                     <span>{lang === 'tl' ? 'Kumuha' : 'Upload'}</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                       onChange={handleFileUpload}
                       className="hidden"
                     />

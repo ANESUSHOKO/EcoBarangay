@@ -109,13 +109,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setError(null);
+
+    // Reject GIF format explicitly (TC_REPORT_04)
+    if (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) {
+      setError('GIF format is not supported. Please upload a JPG, PNG, or WEBP photo.');
+      e.target.value = '';
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const validExtensions = /\.(jpe?g|png|webp)$/i;
+
+    if (!allowedTypes.includes(file.type) && !validExtensions.test(file.name)) {
+      setError('Invalid file format. Only JPG, JPEG, PNG, and WEBP images are supported.');
+      e.target.value = '';
+      return;
+    }
+
     if (file.size > 5 * 1024 * 1024) {
       setError('Image file is too large. Please select an image under 5MB.');
+      e.target.value = '';
       return;
     }
 
     setUploadingImage(true);
-    setError(null);
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -941,7 +959,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         <label className={`cursor-pointer block text-center px-3 py-1.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-800 transition-all shadow-xs ${uploadingImage ? 'opacity-60 pointer-events-none' : ''}`}>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                             className="hidden"
                             onChange={handleImageUpload}
                             disabled={uploadingImage}

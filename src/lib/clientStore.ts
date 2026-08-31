@@ -474,7 +474,7 @@ class ClientStore {
       region: brgy.regionName,
       passwordHash,
       phone: data.phone?.trim() || undefined,
-      avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+      avatarUrl: data.avatarUrl?.trim() || undefined,
       householdHeadName: data.householdHeadName?.trim() || undefined,
       householdMembersCount: data.householdMembersCount || 1,
       householdAddress: data.householdAddress?.trim() || undefined,

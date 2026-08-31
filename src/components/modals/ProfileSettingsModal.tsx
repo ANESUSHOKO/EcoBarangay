@@ -38,11 +38,39 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setError(null);
+
+    // Reject GIF format explicitly (TC_REPORT_04)
+    if (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) {
+      setError('GIF format is not supported. Please upload a JPG, PNG, or WEBP photo.');
+      e.target.value = '';
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const validExtensions = /\.(jpe?g|png|webp)$/i;
+
+    if (!allowedTypes.includes(file.type) && !validExtensions.test(file.name)) {
+      setError('Invalid file format. Only JPG, JPEG, PNG, and WEBP images are supported.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image file is too large. Please select an image under 5MB.');
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         setAvatarUrl(reader.result);
       }
+    };
+    reader.onerror = () => {
+      setError('Failed to read image file.');
     };
     reader.readAsDataURL(file);
   };
@@ -143,20 +171,45 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* Avatar section */}
           <div className="flex items-center space-x-4 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-            <div className="relative">
-              <img
-                src={avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
-                alt={fullName}
-                className="w-16 h-16 rounded-full object-cover ring-2 ring-emerald-500"
-              />
-              <label className="absolute bottom-0 right-0 p-1.5 bg-emerald-600 text-white rounded-full cursor-pointer hover:bg-emerald-700 shadow-md">
+            <div className="relative shrink-0">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={fullName}
+                  className="w-16 h-16 rounded-full object-cover ring-2 ring-emerald-500 shadow-xs"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center font-bold ring-2 ring-slate-300 dark:ring-slate-600">
+                  <UserIcon className="w-8 h-8" />
+                </div>
+              )}
+              <label
+                className="absolute bottom-0 right-0 p-1.5 bg-emerald-600 text-white rounded-full cursor-pointer hover:bg-emerald-700 shadow-md transition-transform hover:scale-105"
+                title="Change Photo"
+              >
                 <Camera className="w-3.5 h-3.5" />
-                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
               </label>
             </div>
-            <div className="flex-1">
-              <div className="font-bold text-slate-900 dark:text-white">{fullName || 'Resident'}</div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">Brgy. {currentUser.barangayName}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <div className="font-bold text-slate-900 dark:text-white truncate">{fullName || 'Resident'}</div>
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatarUrl('')}
+                    className="text-[10px] text-red-600 dark:text-red-400 hover:underline font-bold"
+                  >
+                    Remove Photo
+                  </button>
+                )}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Brgy. {currentUser.barangayName}</div>
               <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
                 {currentUser.ecoPoints || 0} EcoPoints • Level {Math.floor((currentUser.ecoPoints || 0) / 100) + 1}
               </div>

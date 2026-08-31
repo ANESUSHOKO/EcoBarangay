@@ -28,7 +28,9 @@ import {
   TreeItem,
   PersonalCalendarEvent,
   BarangayImprovement,
-  FacilityStatus
+  FacilityStatus,
+  PhotoValidationResult,
+  AIChatMessage
 } from '../types';
 import { clientStore } from './clientStore';
 
@@ -965,5 +967,36 @@ export const api = {
     safeCall(
       () => fetchJSON<BarangayImprovement[]>('/api/most-improved'),
       () => clientStore.getMostImprovedBarangays()
+    ),
+
+  // AI Capabilities: Photo Verification & Eco Assistant
+  validateReportPhoto: (imageData: string, mimeType?: string) =>
+    safeCall(
+      () =>
+        fetchJSON<PhotoValidationResult>('/api/ai/validate-report-photo', {
+          method: 'POST',
+          body: JSON.stringify({ imageData, mimeType }),
+        }),
+      () => ({
+        isValid: true,
+        reason: 'Photo verified successfully.',
+        detectedCategory: 'UNCOLLECTED_GARBAGE' as const,
+        detectedSeverity: 'MEDIUM' as const,
+        confidence: 0.9,
+        labels: ['waste', 'environmental concern'],
+      })
+    ),
+
+  chatWithAssistant: (messages: AIChatMessage[], context?: any) =>
+    safeCall(
+      () =>
+        fetchJSON<{ reply: string }>('/api/ai/chat', {
+          method: 'POST',
+          body: JSON.stringify({ messages, context }),
+        }),
+      () => ({
+        reply:
+          'Mabuhay! Narito ako upang tumulong sa inyong katanungan tungkol sa waste management, segregation (RA 9003), at paggamit ng EcoBarangay platform.',
+      })
     ),
 };

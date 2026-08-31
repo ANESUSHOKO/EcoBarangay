@@ -6,6 +6,7 @@ import {
   ReportCategory,
   ReportUrgency,
   Language,
+  PhotoValidationResult,
 } from '../../types';
 import { api } from '../../lib/api';
 import {
@@ -27,6 +28,9 @@ import {
   UploadCloud,
   Layers,
   Info,
+  Bot,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface EnvironmentalReportFormProps {
@@ -113,6 +117,8 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
   const [customTagInput, setCustomTagInput] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoPreview, setPhotoPreview] = useState('');
+  const [isValidatingPhoto, setIsValidatingPhoto] = useState(false);
+  const [photoValidation, setPhotoValidation] = useState<PhotoValidationResult | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number }>({
     lat: currentBarangay.lat,
@@ -292,13 +298,67 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
     );
   };
 
-  // Handle Photo File Upload
+  // AI Photo Verification Engine (Gemini Vision)
+  const runPhotoVerification = async (dataUrl: string) => {
+    setIsValidatingPhoto(true);
+    setPhotoValidation(null);
+    setErrorMsg('');
+
+    try {
+      const result = await api.validateReportPhoto(dataUrl);
+      setPhotoValidation(result);
+
+      if (!result.isValid) {
+        setErrorMsg(`AI Photo Rejection: ${result.reason}`);
+      } else {
+        // Auto-suggest category if detected and user hasn't modified
+        if (result.detectedCategory === 'CLOGGED_DRAINAGE') setCategory('Clogged Drainage');
+        else if (result.detectedCategory === 'OPEN_BURNING') setCategory('Open Burning (Siga)');
+        else if (result.detectedCategory === 'HAZARDOUS_WASTE') setCategory('Hazardous Waste');
+        else if (result.detectedCategory === 'ILLEGAL_DUMPING') setCategory('Illegal Dumping');
+        else if (result.detectedCategory === 'RECYCLING') setCategory('Plastic Pollution');
+
+        if (result.detectedSeverity === 'CRITICAL' || result.detectedSeverity === 'HIGH') {
+          setUrgency('High');
+        }
+
+        if (result.suggestedTitle && (!description || description.length < 5)) {
+          setDescription(result.suggestedTitle);
+        }
+      }
+    } catch (err: any) {
+      console.warn('AI validation error:', err);
+    } finally {
+      setIsValidatingPhoto(false);
+    }
+  };
+
+  // Handle Photo File Upload (TC_REPORT_04: Validate file type and reject GIFs)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setErrorMsg('');
+
+    // Reject GIF format explicitly (TC_REPORT_04)
+    if (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) {
+      setErrorMsg('GIF format is not supported. Please upload a standard photo in JPG, PNG, or WEBP format.');
+      e.target.value = '';
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const validExtensions = /\.(jpe?g|png|webp)$/i;
+
+    if (!allowedTypes.includes(file.type) && !validExtensions.test(file.name)) {
+      setErrorMsg('Invalid file format. Only JPG, JPEG, PNG, and WEBP image files are supported.');
+      e.target.value = '';
+      return;
+    }
+
     if (file.size > 5 * 1024 * 1024) {
       setErrorMsg('Image size exceeds 5MB limit. Please choose a smaller image.');
+      e.target.value = '';
       return;
     }
 
@@ -307,11 +367,16 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
       const result = event.target?.result as string;
       setPhotoPreview(result);
       setPhotoUrl(result);
+      // Run AI inspection
+      runPhotoVerification(result);
+    };
+    reader.onerror = () => {
+      setErrorMsg('Failed to read image file. Please try again.');
     };
     reader.readAsDataURL(file);
   };
 
-  // Form Submission
+  // Form Submission (TC_REPORT_02: Validate required fields and only attach photo if explicitly uploaded)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -326,6 +391,14 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
       return;
     }
 
+    // AI Photo Inspection Enforcement: block submission if photo was rejected by AI
+    if ((photoUrl || photoPreview) && photoValidation && !photoValidation.isValid) {
+      setErrorMsg(
+        `Submission Blocked by AI Verification: ${photoValidation.reason}. Please remove this picture and provide a photo of the environmental or waste problem.`
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -337,10 +410,9 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
         : guestName.trim() || 'Concerned Community Resident';
       const reporterContact = currentUser?.phone || guestContact.trim() || undefined;
 
-      const finalPhoto =
-        photoUrl ||
-        photoPreview ||
-        'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&q=80&w=800';
+      // TC_REPORT_02: Do NOT auto-assign or fallback to an Unsplash image.
+      // Photo should only exist if the user explicitly provided one.
+      const finalPhoto = (photoUrl && photoUrl.trim()) || (photoPreview && photoPreview.trim()) || undefined;
 
       const payload = {
         category,
@@ -766,38 +838,120 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
           </div>
         </div>
 
-        {/* SECTION 6: Photo Documentation Evidence */}
+        {/* SECTION 6: Photo Documentation Evidence with AI Verification */}
         <div className="space-y-3">
-          <label className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <Camera className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>5. Photo Evidence & Visual Documentation</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>5. Photo Evidence & Visual Documentation</span>
+            </label>
+            <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-500" />
+              Gemini Vision AI Verified
+            </span>
+          </div>
 
           {/* Photo Preview if selected */}
           {photoPreview || photoUrl ? (
-            <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 aspect-video max-h-56 w-full">
-              <img
-                src={photoPreview || photoUrl}
-                alt="Environmental concern preview"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end justify-between p-3">
-                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Photo Attached
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhotoPreview('');
-                    setPhotoUrl('');
-                  }}
-                  className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Remove</span>
-                </button>
+            <div className="space-y-2.5">
+              <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 aspect-video max-h-56 w-full">
+                <img
+                  src={photoPreview || photoUrl}
+                  alt="Environmental concern preview"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end justify-between p-3">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    {photoValidation?.isValid ? (
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    ) : photoValidation?.isValid === false ? (
+                      <ShieldAlert className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    )}
+                    Photo Attached
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoPreview('');
+                      setPhotoUrl('');
+                      setPhotoValidation(null);
+                    }}
+                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </button>
+                </div>
               </div>
+
+              {/* AI Verification Status Card */}
+              {isValidatingPhoto ? (
+                <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-3">
+                  <Loader2 className="w-4 h-4 text-emerald-600 animate-spin shrink-0" />
+                  <div className="text-xs">
+                    <span className="font-bold text-emerald-900 dark:text-emerald-200">
+                      Gemini AI is inspecting photo for environmental validity...
+                    </span>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                      Analyzing subject matter to ensure valid waste/cleanliness evidence.
+                    </p>
+                  </div>
+                </div>
+              ) : photoValidation?.isValid ? (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-emerald-900 dark:text-emerald-200">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>AI Verification Passed: Valid Environmental Evidence</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 rounded">
+                      {Math.round(photoValidation.confidence * 100)}% Match
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                    {photoValidation.reason}
+                  </p>
+                  {photoValidation.labels && photoValidation.labels.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {photoValidation.labels.map((lbl, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[10px] font-medium px-1.5 py-0.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-emerald-200 dark:border-emerald-800 rounded-md"
+                        >
+                          #{lbl}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : photoValidation?.isValid === false ? (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-xl space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-rose-800 dark:text-rose-200">
+                    <ShieldAlert className="w-4 h-4 text-rose-600" />
+                    <span>AI Rejection: Non-Environmental Photo Detected</span>
+                  </div>
+                  <p className="text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed font-medium">
+                    {photoValidation.reason}
+                  </p>
+                  <p className="text-[10px] text-rose-600 dark:text-rose-400 italic">
+                    Note: To maintain high data integrity, only photos showing waste, illegal dumping, clogged canals, or public environmental hazards can be submitted.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoPreview('');
+                      setPhotoUrl('');
+                      setPhotoValidation(null);
+                    }}
+                    className="mt-1 text-xs font-bold text-rose-700 hover:text-rose-800 underline flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove photo and choose a valid picture
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-3">
@@ -811,12 +965,12 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                     Click to snap or upload photo evidence
                   </span>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Supports JPG, PNG, WEBP (Max 5MB)
+                    Supports JPG, PNG, WEBP (Max 5MB) • Inspected by AI
                   </p>
                 </div>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                   onChange={handleFileUpload}
                   className="hidden"
                 />
@@ -835,6 +989,7 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                       onClick={() => {
                         setPhotoUrl(sample.url);
                         setPhotoPreview(sample.url);
+                        runPhotoVerification(sample.url);
                       }}
                       className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 text-left aspect-video hover:ring-2 hover:ring-emerald-500 transition-all"
                     >

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from './lib/api';
 import { User, Barangay, Language } from './types';
 import { ThemeMode, getInitialTheme, setThemeMode } from './lib/theme';
-import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav, DeveloperInfoModal } from './components';
+import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav, DeveloperInfoModal, EcoAssistantChat } from './components';
 import {
   Code2,
   GraduationCap,
@@ -28,7 +28,14 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentBarangay, setCurrentBarangay] = useState<Barangay | null>(null);
 
-  const [activeTab, setActiveTab] = useState<string>('home');
+  // Initial tab from URL hash if available
+  const getTabFromHash = () => {
+    const hash = window.location.hash.replace('#', '').trim();
+    const validTabs = ['home', 'feed', 'auth', 'dashboard', 'map', 'rankings', 'reports', 'events', 'schedule'];
+    return validTabs.includes(hash) ? hash : 'home';
+  };
+
+  const [activeTab, setActiveTabState] = useState<string>(() => getTabFromHash());
   const [lang, setLang] = useState<Language>('en');
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
 
@@ -36,6 +43,38 @@ export function App() {
   const [isGuideModalOpen, setIsGuideModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState<boolean>(false);
+
+  // Set active tab and sync with browser URL/history
+  const setActiveTab = (tab: string, replace = false) => {
+    setActiveTabState(tab);
+    const targetHash = `#${tab}`;
+    if (window.location.hash !== targetHash) {
+      if (replace) {
+        window.history.replaceState({ tab }, '', targetHash);
+      } else {
+        window.history.pushState({ tab }, '', targetHash);
+      }
+    }
+  };
+
+  // Browser navigation / Back button listener (TC_LOGOUT_02)
+  useEffect(() => {
+    const handlePopState = () => {
+      const tab = getTabFromHash();
+      const savedUserId = localStorage.getItem('ecobarangay_current_user_id');
+
+      // If user is logged out and tries to access dashboard via back/forward buttons, redirect to auth
+      if (tab === 'dashboard' && (!currentUser && !savedUserId)) {
+        window.history.replaceState({ tab: 'auth' }, '', '#auth');
+        setActiveTabState('auth');
+      } else {
+        setActiveTabState(tab);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [currentUser]);
 
   // Sync theme to DOM
   useEffect(() => {
@@ -70,11 +109,25 @@ export function App() {
             }).catch(console.error);
           } else {
             localStorage.removeItem('ecobarangay_current_user_id');
+            if (window.location.hash === '#dashboard') {
+              window.history.replaceState({ tab: 'home' }, '', '#home');
+              setActiveTabState('home');
+            }
           }
         })
         .catch(() => {
           localStorage.removeItem('ecobarangay_current_user_id');
+          if (window.location.hash === '#dashboard') {
+            window.history.replaceState({ tab: 'home' }, '', '#home');
+            setActiveTabState('home');
+          }
         });
+    } else {
+      // If no session and hash is dashboard, protect route
+      if (window.location.hash === '#dashboard') {
+        window.history.replaceState({ tab: 'auth' }, '', '#auth');
+        setActiveTabState('auth');
+      }
     }
   }, []);
 
@@ -92,6 +145,7 @@ export function App() {
     setActiveTab('dashboard');
   };
 
+  // TC_LOGOUT_02: Invalidate session and replace browser history to prevent unauthorized access via back button
   const handleLogout = () => {
     setCurrentUser(null);
     try {
@@ -99,7 +153,9 @@ export function App() {
     } catch (e) {
       console.warn(e);
     }
-    setActiveTab('home');
+    // Replace URL and state with home
+    window.history.replaceState({ tab: 'home' }, '', '#home');
+    setActiveTabState('home');
   };
 
   const handleSelectBarangay = (b: Barangay) => {
@@ -370,6 +426,14 @@ export function App() {
           }}
         />
       )}
+
+      {/* 24/7 AI EcoBot Assistant */}
+      <EcoAssistantChat
+        currentUser={currentUser}
+        currentBarangay={currentBarangay}
+        lang={lang}
+        onNavigateToTab={setActiveTab}
+      />
     </div>
   );
 }

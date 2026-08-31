@@ -579,3 +579,21 @@ export interface PersonalCalendarEvent {
   isCustom: boolean;
 }
 
+export interface PhotoValidationResult {
+  isValid: boolean;
+  reason: string;
+  detectedCategory?: 'UNCOLLECTED_GARBAGE' | 'ILLEGAL_DUMPING' | 'CLOGGED_DRAINAGE' | 'OPEN_BURNING' | 'HAZARDOUS_WASTE' | 'RECYCLING' | 'OTHER';
+  detectedSeverity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  confidence: number;
+  labels: string[];
+  suggestedTitle?: string;
+  suggestedDescription?: string;
+}
+
+export interface AIChatMessage {
+  id?: string;
+  role: 'user' | 'model';
+  content: string;
+  timestamp?: string;
+}
+
