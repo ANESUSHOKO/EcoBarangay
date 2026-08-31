@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from './lib/api';
 import { User, Barangay, Language } from './types';
 import { ThemeMode, getInitialTheme, setThemeMode } from './lib/theme';
-import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav, DeveloperInfoModal, EcoAssistantChat } from './components';
+import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav, DeveloperInfoModal } from './components';
 import {
   Code2,
   GraduationCap,
@@ -426,14 +426,6 @@ export function App() {
           }}
         />
       )}
-
-      {/* 24/7 AI EcoBot Assistant */}
-      <EcoAssistantChat
-        currentUser={currentUser}
-        currentBarangay={currentBarangay}
-        lang={lang}
-        onNavigateToTab={setActiveTab}
-      />
     </div>
   );
 }

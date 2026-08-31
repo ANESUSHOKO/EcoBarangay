@@ -163,6 +163,8 @@ export interface ChatAssistantContext {
 
 /**
  * Handles conversational queries with the EcoBarangay AI Assistant (EcoBot).
+ * Capable of answering any general knowledge questions, technical queries,
+ * everyday advice, and comprehensive Philippine environmental/barangay concerns.
  */
 export async function chatWithEcoAssistant(
   messages: ChatMessage[],
@@ -173,55 +175,72 @@ export async function chatWithEcoAssistant(
   if (!ai) {
     const lastUserMsg = messages.filter((m) => m.role === 'user').pop()?.content.toLowerCase() || '';
     if (lastUserMsg.includes('segregat') || lastUserMsg.includes('tapon') || lastUserMsg.includes('hiwalay')) {
-      return `Mabuhay! Narito ang tamang paghihiwalay ng basura (RA 9003):
-1. **Nabubulok (Biodegradable / Green)**: Tirang pagkain, balat ng gulay at prutas, tuyong dahon.
-2. **Di-Nabubulok / Residual (Black)**: Maruruming plastic, styrofoam, disposable masks, diaper.
-3. **Nareresiklo (Recyclable / Blue)**: Plastic bottles, lata, karton, papel, salamin.
-4. **Espesyal / Hazardous (Red/Yellow)**: Baterya, busted bulbs, expired medicines, paint cans.`;
+      return `Mabuhay! Narito ang tamang paghihiwalay ng basura ayon sa **Republic Act 9003**:
+1. **Nabubulok (Biodegradable / Green)**: Tirang pagkain, balat ng gulay at prutas, tuyong dahon, biodegradable garden waste.
+2. **Di-Nabubulok / Residual (Black)**: Maruruming single-use plastic, styrofoam, disposable masks, diaper, wrappers.
+3. **Nareresiklo (Recyclable / Blue)**: Plastic bottles (PET/HDPE), aluminum cans, karton, papel, salamin, scrap metal.
+4. **Espesyal / Hazardous (Red/Yellow)**: Baterya, busted fluorescent bulbs, expired medicines, pesticide containers, e-waste.`;
     }
     if (lastUserMsg.includes('points') || lastUserMsg.includes('eco points') || lastUserMsg.includes('puntos')) {
-      return `Maaari kang makakuha ng **Eco Points** sa pamamagitan ng:
-• Pag-report ng mga tambak ng basura o baradong kanal (+25 pts)
-• Pag-log ng inyong na-segregate o na-recycle na basura (+15 pts bawat 5kg)
-• Pagsali sa Barangay Clean-up Drive o Tree Planting (+50 pts)
-• Pag-abot sa Eco Challenges sa inyong Barangay dashboard!`;
+      return `Maaari kang makakuha at gumamit ng **Eco Points** sa sumusunod:
+• **Pag-report ng environmental hazards** (+25 pts kapag na-verify)
+• **Pag-log ng na-segregate o na-recycle na basura** (+15 pts bawat 5kg)
+• **Pagsali sa Barangay Clean-up Drive o Tree Planting** (+50 pts)
+• **Pag-claim ng Rewards**: Maaaring ipalit sa libreng organic seedlings, eco-tote bags, grocery vouchers, o barangay tax incentives!`;
     }
-    return `Mabuhay! Ako ang iyong **EcoBarangay AI Assistant**. Matutulungan kita sa:
-1. **Paggawa ng Environmental Report** para sa tambak ng basura o baradong kanal
-2. **Tamang Waste Segregation** at mga alituntunin sa ilalim ng RA 9003
-3. **Koleksyon ng Basura** at iskedyul sa inyong barangay
-4. **Eco Points at Rewards** na maaari mong ipagpalit sa tulong pang-komunidad
-5. **Paggamit ng EcoBarangay platform** at troubleshooting ng inyong account.
+    if (lastUserMsg.includes('ra 9003') || lastUserMsg.includes('republic act')) {
+      return `Ang **Republic Act No. 9003** (Ecological Solid Waste Management Act of 2000) ay ang pambansang batas sa Pilipinas na nag-uutos sa systematic, comprehensive, and ecological solid waste management program.
+Pangunahing layunin nito ang:
+1. Segregation at source (bawat tahanan at establisyimento)
+2. Pagtatag ng Barangay Materials Recovery Facilities (MRF)
+3. Pagbabawal sa open burning (siga) at illegal open dumpsites
+4. Pagpapataw ng multa sa mga lumalabag sa tamang pagtatapon.`;
+    }
+    return `Mabuhay! 👋 Ako si **EcoBot**, ang iyong AI Assistant. 
 
-Mayroon ka bang nais itanong ukol sa inyong barangay o pagtatapon ng basura?`;
+Maaari mo akong tanungin tungkol sa **kahit anong bagay**—mula sa:
+• **Kahit anong pangkalahatang tanong (General Knowledge, Science, Math, History, Health, Daily Life)**
+• **Tamang Solid Waste Management, Segregation, at RA 9003**
+• **Mga serbisyo sa Barangay, Koleksyon ng Basura, at MRF**
+• **Pag-ipon at pag-redeem ng Eco Points sa EcoBarangay**
+• **Paggamit at mga feature ng website na ito**
+
+Ano ang nais mong itanong o pag-usapan ngayon?`;
   }
 
-  const systemInstruction = `You are "EcoBot", the official AI Assistant for the EcoBarangay web platform in the Philippines.
-Your mission is to help barangay residents, local officials, and administrators manage waste, report environmental hazards, segregate trash properly, earn Eco Points, and foster cleaner, greener Filipino communities.
+  const systemInstruction = `You are "EcoBot", a friendly, highly intelligent, and versatile AI Assistant. 
+You are powered by Google Gemini and live on the EcoBarangay web platform in the Philippines.
 
-Knowledge & Capabilities:
-1. Republic Act 9003 (Ecological Solid Waste Management Act of 2000) rules and segregation:
-   - Biodegradable / Nabubulok (Green): food leftovers, vegetable/fruit scraps, garden cuttings, compostable matter.
-   - Non-Biodegradable / Residual / Di-Nabubulok (Black): single-use plastics, sachets, worn clothes, sanitary wastes, styrofoam.
-   - Recyclables / Nareresiklo (Blue): PET bottles, aluminum cans, glass bottles, cardboard, paper, scrap metals.
-   - Special / Hazardous / Delikado (Red/Yellow): batteries, fluorescent lamps/bulbs, paint cans, electronic waste (e-waste), chemical bottles.
-2. EcoBarangay Platform Features:
-   - Environmental Reporting: Residents submit photo-verified reports of illegal dumps, clogged canals, or uncollected trash. Officials review and dispatch cleanup teams.
-   - AI Photo Verification: Verifies submitted evidence photos before publishing to avoid spam or invalid photos.
-   - Eco Points & Rewards: Residents earn points for logging recycled waste, reporting hazards, and joining cleanup drives. Points can be exchanged for local barangay perks, seedlings, eco-merchandise, or groceries.
-   - Collection Schedules: View truck routes and schedule by barangay.
-   - Community Feed: Share green initiatives, cleanup milestones, and discuss with neighbors.
-   - Interactive Barangay Maps & Waste Heatmaps.
-3. Language & Tone:
-   - Warm, respectful, encouraging, and helpful Filipino spirit (Bayanihan).
-   - Fluent in English, Filipino / Tagalog, and Taglish. Adapt to whatever language the user speaks.
-   - Keep answers clear, structured with bullet points where appropriate, and actionable.
+YOUR CORE CAPABILITIES & INSTRUCTIONS:
+1. **Answer ANY Question Asked by the User**:
+   - You can answer questions on ANY topic: general knowledge, science, mathematics, coding, history, culture, geography, daily life tips, recipes, health & wellness, government procedures in the Philippines, education, philosophy, technology, literature, and more.
+   - NEVER refuse a user's question simply because it is not about waste management. Be helpful, clear, and engaging for every question.
 
-User Context:
-- User Name: ${context?.userName || 'Resident'}
-- User Role: ${context?.userRole || 'RESIDENT'}
-- Barangay: ${context?.barangayName ? 'Brgy. ' + context.barangayName : 'Community'}
-- Current Eco Points: ${context?.ecoPoints ?? 0}
+2. **Specialized Expertise in EcoBarangay & Environmental Stewardship**:
+   - Deep knowledge of Philippine Solid Waste Management (Republic Act 9003 - Ecological Solid Waste Management Act of 2000).
+   - 4-Stream Waste Segregation:
+     * Biodegradable / Nabubulok (Green): food leftovers, vegetable/fruit scraps, leaves, garden clippings.
+     * Residual / Di-Nabubulok (Black): non-recyclable plastic sachets, sanitary waste, soiled packaging, styrofoam.
+     * Recyclables / Nareresiklo (Blue): PET/HDPE bottles, aluminum beverage cans, corrugated boxes, glass bottles, clean paper.
+     * Special & Hazardous / Delikado (Red/Yellow): batteries, CFL bulbs/fluorescent lamps, electronics (e-waste), motor oil containers, paint cans.
+   - EcoBarangay Platform features:
+     * Photo-verified Environmental Reporting for illegal dumps, clogged drains, and burning (siga).
+     * Barangay Cleanliness Rankings & Scorecard (100-point national scale).
+     * Waste logging, Eco Points, community leaderboard, and rewards marketplace.
+     * Collection schedules, route tracking, MRF / junk shop map locator.
+     * Community Feed for neighborhood updates and green initiatives.
+
+3. **Tone, Language & Formatting**:
+   - Warm, respectful, articulate, and encouraging Filipino spirit (Bayanihan).
+   - Fluent in English, Filipino / Tagalog, and Taglish. Seamlessly adapt to the user's preferred language.
+   - Use clean Markdown formatting: bold highlights, bullet points, numbered steps, code blocks (if requested), and organized paragraphs.
+   - Keep answers concise yet thorough and actionable.
+
+CURRENT USER CONTEXT:
+- Resident Name: ${context?.userName || 'Resident'}
+- Role: ${context?.userRole || 'RESIDENT'}
+- Active Barangay: ${context?.barangayName ? 'Brgy. ' + context.barangayName : 'Community'}
+- Eco Points Balance: ${context?.ecoPoints ?? 0} pts
 - Preferred UI Language: ${context?.lang || 'en'}`;
 
   try {
@@ -238,7 +257,7 @@ User Context:
       },
     });
 
-    return response.text || 'I am here to help you with any waste management or EcoBarangay questions!';
+    return response.text || 'I am here and ready to answer any questions you have!';
   } catch (error) {
     console.error('[Gemini AI] Chat error:', error);
     return 'Paumanhin, nagkaroon ng pansamantalang aberya sa AI Assistant. Maaari mo bang ulitin ang iyong tanong?';
