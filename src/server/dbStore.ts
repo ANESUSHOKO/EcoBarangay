@@ -15,7 +15,17 @@ import {
   City,
   FeedPost,
   GovernmentPage,
-  AppNotification
+  AppNotification,
+  PersonalCalendarEvent,
+  BulkWastePickupRequest,
+  BulkWasteStatus,
+  EcoBusiness,
+  PartnerOrganization,
+  FamilyGroup,
+  EnvironmentalAsset,
+  TreeItem,
+  EnvironmentalAlert,
+  BarangayImprovement
 } from '../types';
 import {
   INITIAL_REGIONS,
@@ -32,7 +42,16 @@ import {
   INITIAL_ANNOUNCEMENTS,
   INITIAL_FEED_POSTS,
   INITIAL_GOVERNMENT_PAGES,
-  INITIAL_NOTIFICATIONS
+  INITIAL_NOTIFICATIONS,
+  INITIAL_CALENDAR_EVENTS,
+  INITIAL_BULK_PICKUPS,
+  INITIAL_BUSINESSES,
+  INITIAL_ORGANIZATIONS,
+  INITIAL_FAMILY_GROUPS,
+  INITIAL_ASSETS,
+  INITIAL_TREES,
+  INITIAL_ALERTS,
+  INITIAL_BARANGAY_IMPROVEMENTS
 } from './initialData';
 import { firestoreDb } from './firebaseAdmin';
 
@@ -52,16 +71,48 @@ interface DBData {
   announcements: Announcement[];
   feedPosts: FeedPost[];
   notifications: AppNotification[];
+  calendarEvents?: PersonalCalendarEvent[];
+  bulkPickups?: BulkWastePickupRequest[];
+  businesses?: EcoBusiness[];
+  organizations?: PartnerOrganization[];
+  familyGroups?: FamilyGroup[];
+  assets?: EnvironmentalAsset[];
+  trees?: TreeItem[];
+  alerts?: EnvironmentalAlert[];
+  improvements?: BarangayImprovement[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
+const PSGC_DIR = path.join(DATA_DIR, 'psgc');
 
 class DBStore {
   private data!: DBData;
+  private psgcRegions: Region[] | null = null;
+  private psgcProvinces: Province[] | null = null;
+  private psgcCities: City[] | null = null;
+  private psgcBarangaysByCity: Record<string, any[]> | null = null;
+  private psgcAllBarangays: any[] | null = null;
 
   constructor() {
     this.init();
+    this.loadPsgcData();
+  }
+
+  public loadPsgcData() {
+    if (this.psgcRegions) return;
+    try {
+      if (fs.existsSync(path.join(PSGC_DIR, 'regions.json'))) {
+        this.psgcRegions = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'regions.json'), 'utf-8'));
+        this.psgcProvinces = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'provinces_and_independent_cities.json'), 'utf-8'));
+        this.psgcCities = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'cities.json'), 'utf-8'));
+        this.psgcBarangaysByCity = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'barangays_by_city.json'), 'utf-8'));
+        this.psgcAllBarangays = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'all_barangays_index.json'), 'utf-8'));
+        console.log(`[dbStore] Loaded PSGC official dataset: ${this.psgcRegions?.length} regions, ${this.psgcProvinces?.length} provinces/HUCs, ${this.psgcCities?.length} cities, ${this.psgcAllBarangays?.length} barangays.`);
+      }
+    } catch (e) {
+      console.warn('[dbStore] Note: Could not load data/psgc files, using fallback data:', e);
+    }
   }
 
   private init() {
@@ -81,6 +132,33 @@ class DBStore {
         }
         if (!this.data.notifications) {
           this.data.notifications = INITIAL_NOTIFICATIONS;
+        }
+        if (!this.data.calendarEvents) {
+          this.data.calendarEvents = INITIAL_CALENDAR_EVENTS;
+        }
+        if (!this.data.bulkPickups) {
+          this.data.bulkPickups = INITIAL_BULK_PICKUPS;
+        }
+        if (!this.data.businesses) {
+          this.data.businesses = INITIAL_BUSINESSES;
+        }
+        if (!this.data.organizations) {
+          this.data.organizations = INITIAL_ORGANIZATIONS;
+        }
+        if (!this.data.familyGroups) {
+          this.data.familyGroups = INITIAL_FAMILY_GROUPS;
+        }
+        if (!this.data.assets) {
+          this.data.assets = INITIAL_ASSETS;
+        }
+        if (!this.data.trees) {
+          this.data.trees = INITIAL_TREES;
+        }
+        if (!this.data.alerts) {
+          this.data.alerts = INITIAL_ALERTS;
+        }
+        if (!this.data.improvements) {
+          this.data.improvements = INITIAL_BARANGAY_IMPROVEMENTS;
         }
         // Ensure ranking calculations are up to date
         this.recalculateRanks();
@@ -154,6 +232,15 @@ class DBStore {
       announcements: INITIAL_ANNOUNCEMENTS,
       feedPosts: INITIAL_FEED_POSTS,
       notifications: INITIAL_NOTIFICATIONS,
+      calendarEvents: INITIAL_CALENDAR_EVENTS,
+      bulkPickups: INITIAL_BULK_PICKUPS,
+      businesses: INITIAL_BUSINESSES,
+      organizations: INITIAL_ORGANIZATIONS,
+      familyGroups: INITIAL_FAMILY_GROUPS,
+      assets: INITIAL_ASSETS,
+      trees: INITIAL_TREES,
+      alerts: INITIAL_ALERTS,
+      improvements: INITIAL_BARANGAY_IMPROVEMENTS,
     };
     this.recalculateRanks();
     this.save();
@@ -239,51 +326,201 @@ class DBStore {
     this.data.barangays = sorted;
   }
 
-  // Region / Province / City / Barangay APIs
-  public getRegions() { return this.data.regions; }
+  // Region / Province / City / Barangay APIs (Powered by official BetterGov PSGC dataset)
+  public getRegions(): Region[] {
+    this.loadPsgcData();
+    if (this.psgcRegions && this.psgcRegions.length > 0) {
+      return this.psgcRegions;
+    }
+    return this.data.regions;
+  }
   
-  public getProvinces(regionCode?: string) {
+  public getProvinces(regionCode?: string): Province[] {
+    this.loadPsgcData();
+    let list = (this.psgcProvinces && this.psgcProvinces.length > 0) ? this.psgcProvinces : this.data.provinces;
     if (regionCode) {
-      return this.data.provinces.filter(p => p.regionCode === regionCode);
+      return list.filter(p => p.regionCode === regionCode);
     }
-    return this.data.provinces;
+    return list;
   }
 
-  public getCities(provinceCode?: string, regionCode?: string) {
-    let list = this.data.cities;
+  public getCities(provinceCode?: string, regionCode?: string): City[] {
+    this.loadPsgcData();
+    let list = (this.psgcCities && this.psgcCities.length > 0) ? this.psgcCities : this.data.cities;
     if (provinceCode) {
-      list = list.filter(c => c.provinceCode === provinceCode);
+      // If provinceCode matches an independent city (HUC/ICC), return that city directly
+      const matchInd = list.filter(c => c.code === provinceCode);
+      if (matchInd.length > 0 && matchInd[0].isIndependent) {
+        return matchInd;
+      }
+      return list.filter(c => c.provinceCode === provinceCode);
     } else if (regionCode) {
-      list = list.filter(c => c.regionCode === regionCode);
+      return list.filter(c => c.regionCode === regionCode);
     }
     return list;
   }
 
-  public getBarangays(filters?: { cityCode?: string; provinceCode?: string; regionCode?: string; search?: string }) {
-    let list = this.data.barangays;
-    if (filters?.cityCode) {
-      list = list.filter(b => b.cityCode === filters.cityCode);
-    } else if (filters?.provinceCode) {
-      list = list.filter(b => b.provinceCode === filters.provinceCode);
-    } else if (filters?.regionCode) {
-      list = list.filter(b => b.regionCode === filters.regionCode);
+  public getBarangays(filters?: { cityCode?: string; provinceCode?: string; regionCode?: string; search?: string }): Barangay[] {
+    this.loadPsgcData();
+
+    const wrapBarangay = (b: any): Barangay => {
+      const existing = this.data.barangays.find(ex => ex.id === b.id || ex.psgcCode === b.psgcCode);
+      if (existing) return existing;
+      return {
+        id: b.id,
+        psgcCode: b.psgcCode || b.id,
+        name: b.name,
+        cityCode: b.cityCode,
+        cityName: b.cityName,
+        provinceCode: b.provinceCode,
+        provinceName: b.provinceName,
+        regionCode: b.regionCode,
+        regionName: b.regionName,
+        lat: b.lat,
+        lng: b.lng,
+        population: 4500,
+        totalUsers: 0,
+        score: {
+          wasteManagement: 15,
+          recycling: 12,
+          communityParticipation: 10,
+          reportsResolution: 10,
+          cleanupActivities: 5,
+          sustainabilityChallenges: 2,
+          educationParticipation: 2,
+          totalScore: 56,
+          tier: 'Developing',
+          nationalRank: 1000,
+        },
+        totalRecycledKg: 0,
+        totalReportsResolved: 0,
+        totalReportsReceived: 0,
+        mrfActive: true,
+        garbageScheduleDays: ['Monday', 'Wednesday', 'Friday'],
+      };
+    };
+
+    // Fast O(1) retrieval when cityCode is provided
+    if (filters?.cityCode && this.psgcBarangaysByCity && this.psgcBarangaysByCity[filters.cityCode]) {
+      let brgyList = this.psgcBarangaysByCity[filters.cityCode];
+      if (filters?.search) {
+        const q = filters.search.toLowerCase();
+        brgyList = brgyList.filter((b: any) => b.name.toLowerCase().includes(q));
+      }
+      return brgyList.map(wrapBarangay);
     }
 
-    if (filters?.search) {
+    // High performance search across all 42,000+ official barangays
+    if (filters?.search && this.psgcAllBarangays) {
       const q = filters.search.toLowerCase();
-      list = list.filter(
-        b =>
-          b.name.toLowerCase().includes(q) ||
-          b.cityName.toLowerCase().includes(q) ||
-          b.provinceName.toLowerCase().includes(q) ||
-          b.regionName.toLowerCase().includes(q)
+      let matches = this.psgcAllBarangays.filter((b: any) =>
+        b.name.toLowerCase().includes(q) ||
+        (b.cityName && b.cityName.toLowerCase().includes(q)) ||
+        (b.provinceName && b.provinceName.toLowerCase().includes(q))
       );
+      if (filters?.regionCode) {
+        matches = matches.filter((b: any) => b.regionCode === filters.regionCode);
+      }
+      if (filters?.provinceCode) {
+        matches = matches.filter((b: any) => b.provinceCode === filters.provinceCode || b.cityCode === filters.provinceCode);
+      }
+      return matches.slice(0, 50).map(wrapBarangay);
     }
-    return list;
+
+    // Filter by province
+    if (filters?.provinceCode && this.psgcAllBarangays) {
+      const matches = this.psgcAllBarangays.filter((b: any) =>
+        b.provinceCode === filters.provinceCode || b.cityCode === filters.provinceCode
+      );
+      return matches.slice(0, 100).map(wrapBarangay);
+    }
+
+    // Default fallback
+    return this.data.barangays;
   }
 
-  public getBarangayById(id: string) {
-    return this.data.barangays.find(b => b.id === id);
+  public getBarangayById(id: string): Barangay | undefined {
+    const existing = this.data.barangays.find(b => b.id === id || b.psgcCode === id);
+    if (existing) return existing;
+
+    this.loadPsgcData();
+    if (this.psgcAllBarangays) {
+      const match = this.psgcAllBarangays.find((b: any) => b.id === id || b.psgcCode === id);
+      if (match) {
+        return {
+          id: match.id,
+          psgcCode: match.psgcCode || match.id,
+          name: match.name,
+          cityCode: match.cityCode,
+          cityName: match.cityName,
+          provinceCode: match.provinceCode,
+          provinceName: match.provinceName,
+          regionCode: match.regionCode,
+          regionName: match.regionName,
+          lat: match.lat,
+          lng: match.lng,
+          population: 4500,
+          totalUsers: 0,
+          score: {
+            wasteManagement: 15,
+            recycling: 12,
+            communityParticipation: 10,
+            reportsResolution: 10,
+            cleanupActivities: 5,
+            sustainabilityChallenges: 2,
+            educationParticipation: 2,
+            totalScore: 56,
+            tier: 'Developing',
+            nationalRank: 1000,
+          },
+          totalRecycledKg: 0,
+          totalReportsResolved: 0,
+          totalReportsReceived: 0,
+          mrfActive: true,
+          garbageScheduleDays: ['Monday', 'Wednesday', 'Friday'],
+        };
+      }
+    }
+    return undefined;
+  }
+
+  public detectNearestBarangay(lat: number, lng: number): { nearestBarangay: Barangay & { distanceKm: number }; distanceKm: number } {
+    this.loadPsgcData();
+    const candidateList = (this.psgcAllBarangays && this.psgcAllBarangays.length > 0)
+      ? this.psgcAllBarangays
+      : this.data.barangays;
+
+    let nearest: any = null;
+    let minDistance = Infinity;
+
+    for (const b of candidateList) {
+      if (typeof b.lat === 'number' && typeof b.lng === 'number') {
+        const R = 6371; // km
+        const dLat = (b.lat - lat) * (Math.PI / 180);
+        const dLon = (b.lng - lng) * (Math.PI / 180);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat * (Math.PI / 180)) * Math.cos(b.lat * (Math.PI / 180)) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const dist = Math.round(R * c * 100) / 100;
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearest = b;
+        }
+      }
+    }
+
+    if (!nearest) {
+      nearest = this.data.barangays[0];
+      minDistance = 0;
+    }
+
+    const fullNearest = this.getBarangayById(nearest.id) || this.data.barangays[0];
+    return {
+      nearestBarangay: { ...fullNearest, distanceKm: minDistance },
+      distanceKm: minDistance,
+    };
   }
 
   // Users & Auth
@@ -1022,6 +1259,287 @@ class DBStore {
       cleanupActivities: totalCleanups + 34,
       reportsResolved: totalResolvedReports + 128,
     };
+  }
+
+  // Personal Eco Calendar Events
+  public getCalendarEvents(userId: string, _barangayId?: string): PersonalCalendarEvent[] {
+    if (!this.data.calendarEvents) this.data.calendarEvents = INITIAL_CALENDAR_EVENTS;
+    return this.data.calendarEvents.filter(e => e.userId === userId);
+  }
+
+  public addCalendarEvent(event: any): PersonalCalendarEvent {
+    if (!this.data.calendarEvents) this.data.calendarEvents = INITIAL_CALENDAR_EVENTS;
+    const newEvt: PersonalCalendarEvent = {
+      id: `calevt-${Date.now()}`,
+      userId: event.userId || 'anonymous',
+      title: event.title || 'Eco Activity',
+      date: event.date || new Date().toISOString().split('T')[0],
+      time: event.time || '08:00 AM',
+      type: event.type || 'Personal Reminder',
+      description: event.description || event.instructions || '',
+      isCustom: true,
+    };
+    this.data.calendarEvents.push(newEvt);
+    this.save();
+    return newEvt;
+  }
+
+  // Bulk Waste Pickups
+  public getBulkPickups(userId?: string, barangayId?: string): BulkWastePickupRequest[] {
+    if (!this.data.bulkPickups) this.data.bulkPickups = INITIAL_BULK_PICKUPS;
+    let list = this.data.bulkPickups;
+    if (userId) list = list.filter(b => b.userId === userId);
+    if (barangayId) list = list.filter(b => b.barangayId === barangayId);
+    return list;
+  }
+
+  public createBulkPickup(data: any): BulkWastePickupRequest {
+    if (!this.data.bulkPickups) this.data.bulkPickups = INITIAL_BULK_PICKUPS;
+    const newReq: BulkWastePickupRequest = {
+      id: `bulk-${Date.now()}`,
+      userId: data.userId || 'anonymous',
+      userName: data.userName || 'Resident',
+      userPhone: data.userPhone || data.phone || '09123456789',
+      barangayId: data.barangayId || '',
+      barangayName: data.barangayName || '',
+      wasteType: data.wasteType || 'Furniture',
+      quantityDescription: data.quantityDescription || data.description || '1 item',
+      photoUrl: data.photoUrl,
+      locationAddress: data.locationAddress || data.pickupAddress || '',
+      preferredPickupDate: data.preferredPickupDate || data.preferredDate || new Date().toISOString().split('T')[0],
+      notes: data.notes,
+      status: 'Submitted',
+      createdAt: new Date().toISOString(),
+    };
+    this.data.bulkPickups.unshift(newReq);
+    this.save();
+    return newReq;
+  }
+
+  public updateBulkPickupStatus(id: string, status: BulkWasteStatus, scheduledDate?: string): BulkWastePickupRequest | null {
+    if (!this.data.bulkPickups) this.data.bulkPickups = INITIAL_BULK_PICKUPS;
+    const req = this.data.bulkPickups.find(b => b.id === id);
+    if (req) {
+      req.status = status;
+      if (scheduledDate) req.scheduledDate = scheduledDate;
+      this.save();
+      return req;
+    }
+    return null;
+  }
+
+  // Businesses & Partner Organizations
+  public getEcoBusinesses(barangayId?: string, category?: string): EcoBusiness[] {
+    if (!this.data.businesses) this.data.businesses = INITIAL_BUSINESSES;
+    let list = this.data.businesses;
+    if (barangayId) list = list.filter(b => !b.barangayId || b.barangayId === barangayId);
+    if (category && category !== 'ALL') list = list.filter(b => b.category === category);
+    return list;
+  }
+
+  public createEcoBusiness(data: any): EcoBusiness {
+    if (!this.data.businesses) this.data.businesses = INITIAL_BUSINESSES;
+    const b: EcoBusiness = {
+      id: `biz-${Date.now()}`,
+      name: data.name || '',
+      category: data.category || 'Zero-Waste Store',
+      barangayId: data.barangayId || '',
+      barangayName: data.barangayName || '',
+      cityName: data.cityName || '',
+      address: data.address || '',
+      contactPhone: data.contactPhone || data.phone || '',
+      openingHours: data.openingHours || '8:00 AM - 5:00 PM',
+      services: data.services || ['Recycling'],
+      verified: true,
+      lat: data.lat || 14.58,
+      lng: data.lng || 121.06,
+      rating: 5,
+    };
+    this.data.businesses.push(b);
+    this.save();
+    return b;
+  }
+
+  public getPartnerOrganizations(barangayId?: string): PartnerOrganization[] {
+    if (!this.data.organizations) this.data.organizations = INITIAL_ORGANIZATIONS;
+    let list = this.data.organizations;
+    if (barangayId) list = list.filter(o => !o.barangayId || o.barangayId === barangayId);
+    return list;
+  }
+
+  public createPartnerOrganization(data: any): PartnerOrganization {
+    if (!this.data.organizations) this.data.organizations = INITIAL_ORGANIZATIONS;
+    const o: PartnerOrganization = {
+      id: `org-${Date.now()}`,
+      name: data.name || '',
+      type: data.type || 'NGO',
+      description: data.description || 'Environmental initiative partner',
+      contactEmail: data.contactEmail || '',
+      barangayId: data.barangayId,
+      verified: true,
+      eventsCreatedCount: 0,
+      acronym: data.acronym,
+      category: data.category,
+      scope: data.scope,
+      activeProjectsCount: data.activeProjectsCount || 1,
+    };
+    this.data.organizations.push(o);
+    this.save();
+    return o;
+  }
+
+  // Family Groups
+  public getFamilyGroup(userId: string): FamilyGroup | null {
+    if (!this.data.familyGroups) this.data.familyGroups = INITIAL_FAMILY_GROUPS;
+    return this.data.familyGroups.find(g => g.members?.some(m => m.userId === userId) || g.leaderUserId === userId) || null;
+  }
+
+  public createFamilyGroup(data: any, leaderUser: User): FamilyGroup {
+    if (!this.data.familyGroups) this.data.familyGroups = INITIAL_FAMILY_GROUPS;
+    const group: FamilyGroup = {
+      id: `fam-${Date.now()}`,
+      familyName: data.familyName || data.name || `${leaderUser.fullName}'s Household`,
+      leaderUserId: leaderUser.id,
+      barangayId: leaderUser.barangayId,
+      barangayName: leaderUser.barangayName,
+      members: [{
+        userId: leaderUser.id,
+        fullName: leaderUser.fullName,
+        role: 'Leader',
+        pointsContributed: leaderUser.ecoPoints || 0,
+        avatarUrl: leaderUser.avatarUrl,
+      }],
+      monthlyTargetKg: 50,
+      currentProgressKg: leaderUser.kgRecycled || 0,
+      totalEcoPoints: leaderUser.ecoPoints || 0,
+    };
+    this.data.familyGroups.push(group);
+    this.save();
+    return group;
+  }
+
+  // Assets & Trees & Alerts
+  public getAssets(barangayId?: string, category?: string): EnvironmentalAsset[] {
+    if (!this.data.assets) this.data.assets = INITIAL_ASSETS;
+    let list = this.data.assets;
+    if (barangayId) list = list.filter(a => !a.barangayId || a.barangayId === barangayId);
+    if (category) list = list.filter(a => a.category === category);
+    return list;
+  }
+
+  public createAsset(data: any): EnvironmentalAsset {
+    if (!this.data.assets) this.data.assets = INITIAL_ASSETS;
+    const a: EnvironmentalAsset = {
+      id: `asset-${Date.now()}`,
+      name: data.name || '',
+      category: data.category || 'Solar Installations',
+      barangayId: data.barangayId || '',
+      barangayName: data.barangayName || '',
+      lat: data.lat || 14.58,
+      lng: data.lng || 121.06,
+      description: data.description || '',
+    };
+    this.data.assets.push(a);
+    this.save();
+    return a;
+  }
+
+  public getTrees(barangayId?: string): TreeItem[] {
+    if (!this.data.trees) this.data.trees = INITIAL_TREES;
+    let list = this.data.trees;
+    if (barangayId) list = list.filter(t => !t.barangayId || t.barangayId === barangayId);
+    return list;
+  }
+
+  public addTree(data: any): TreeItem {
+    if (!this.data.trees) this.data.trees = INITIAL_TREES;
+    const tree: TreeItem = {
+      id: `tree-${Date.now()}`,
+      species: data.species || 'Narra',
+      barangayId: data.barangayId || '',
+      barangayName: data.barangayName || '',
+      lat: data.lat || 14.58,
+      lng: data.lng || 121.06,
+      datePlanted: data.datePlanted || data.plantedDate || new Date().toISOString().split('T')[0],
+      condition: data.condition || 'Healthy',
+      plantingOrg: data.plantingOrg || 'EcoBarangay Green Initiative',
+      status: 'Active',
+    };
+    this.data.trees.push(tree);
+    this.save();
+    return tree;
+  }
+
+  public getAlerts(): EnvironmentalAlert[] {
+    if (!this.data.alerts) this.data.alerts = INITIAL_ALERTS;
+    return this.data.alerts;
+  }
+
+  public createAlert(data: any): EnvironmentalAlert {
+    if (!this.data.alerts) this.data.alerts = INITIAL_ALERTS;
+    const al: EnvironmentalAlert = {
+      id: `alt-${Date.now()}`,
+      title: data.title || '',
+      description: data.description || data.message || '',
+      category: data.category || 'Hazardous Waste Incident',
+      targetScope: data.targetScope || 'Barangay',
+      targetId: data.targetId || data.barangayId,
+      severity: data.severity || 'Low',
+      createdAt: new Date().toISOString(),
+      active: true,
+      authorName: data.authorName || 'CENRO Officer',
+    };
+    this.data.alerts.unshift(al);
+    this.save();
+    return al;
+  }
+
+  public getMostImprovedBarangays(): BarangayImprovement[] {
+    if (!this.data.improvements) this.data.improvements = INITIAL_BARANGAY_IMPROVEMENTS;
+    return this.data.improvements;
+  }
+
+  public getTransparencyMetrics(barangayId: string) {
+    const brgy = this.getBarangayById(barangayId);
+    const reports = this.getReports(barangayId);
+    const resolved = reports.filter(r => r.status === 'Resolved').length;
+    const facilities = this.getFacilities(barangayId);
+    return {
+      barangayId,
+      barangayName: brgy?.name || 'Barangay',
+      totalBudget: 2500000,
+      fundsAllocatedWaste: 850000,
+      fundsSpent: 620000,
+      reportsTotal: reports.length,
+      reportsResolved: resolved,
+      reportsResolutionRate: reports.length > 0 ? Math.round((resolved / reports.length) * 100) : 100,
+      mrfCount: facilities.filter(f => f.category === 'mrf').length,
+      complianceRateRA9003: 92,
+    };
+  }
+
+  public addFacilityReview(facilityId: string, review: any) {
+    const f = this.data.facilities.find(fac => fac.id === facilityId);
+    if (f) {
+      const newReview = {
+        ...review,
+        id: `rev-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+      };
+      this.save();
+      return f;
+    }
+    return null;
+  }
+
+  public updateFacilityStatus(facilityId: string, status: any) {
+    const f = this.data.facilities.find(fac => fac.id === facilityId);
+    if (f) {
+      f.status = status;
+      this.save();
+      return f;
+    }
+    return null;
   }
 }
 

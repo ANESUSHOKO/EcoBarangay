@@ -688,6 +688,13 @@ class ClientStore {
     if (user) {
       user.ecoPoints = (user.ecoPoints || 0) + 15;
       this.saveUsers();
+      this.addActivityLog({
+        userId: user.id,
+        type: 'Report',
+        title: `Reported ${data.category}`,
+        description: data.description,
+        pointsEarned: 15,
+      });
     }
 
     return newReport;
@@ -752,6 +759,13 @@ class ClientStore {
         user.ecoPoints = (user.ecoPoints || 0) + (event.pointsAwarded || 20);
         user.cleanupActivitiesCount = (user.cleanupActivitiesCount || 0) + 1;
         this.saveUsers();
+        this.addActivityLog({
+          userId: user.id,
+          type: 'Event',
+          title: `Joined ${event.title}`,
+          description: `Participating in ${event.category} on ${event.date}`,
+          pointsEarned: event.pointsAwarded || 20,
+        });
       }
       return event;
     }
@@ -789,6 +803,13 @@ class ClientStore {
         user.ecoPoints = (user.ecoPoints || 0) + (chal.pointsAwarded || 30);
         user.challengesCompleted = (user.challengesCompleted || 0) + 1;
         this.saveUsers();
+        this.addActivityLog({
+          userId: user.id,
+          type: 'Challenge',
+          title: `Completed ${chal.title}`,
+          description: `Earned ${chal.pointsAwarded || 30} Eco Points!`,
+          pointsEarned: chal.pointsAwarded || 30,
+        });
       }
       return chal;
     }
@@ -968,8 +989,19 @@ class ClientStore {
     const user = this.users.find(u => u.id === userId);
     if (user) {
       user.kgRecycled = (user.kgRecycled || 0) + kg;
-      user.ecoPoints = (user.ecoPoints || 0) + Math.round(kg * 10);
+      const points = Math.round(kg * 10);
+      user.ecoPoints = (user.ecoPoints || 0) + points;
       this.saveUsers();
+
+      this.addActivityLog({
+        userId: user.id,
+        type: 'Recycling',
+        title: `Logged ${kg} kg of ${wasteType}`,
+        description: `Contributed to ${user.barangayName || 'barangay'} recycling score`,
+        pointsEarned: points,
+        kgRecycled: kg,
+        photoUrl,
+      });
 
       if (autoPostToFeed) {
         this.createFeedPost({
@@ -996,6 +1028,17 @@ class ClientStore {
     let list = this.activityLogs;
     if (userId) list = list.filter(a => a.userId === userId);
     return list;
+  }
+
+  public addActivityLog(data: Omit<UserActivityLog, 'id' | 'createdAt'>): UserActivityLog {
+    const log: UserActivityLog = {
+      ...data,
+      id: `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: new Date().toISOString(),
+    };
+    this.activityLogs.unshift(log);
+    this.saveActivityLogs();
+    return log;
   }
 
   // Announcements

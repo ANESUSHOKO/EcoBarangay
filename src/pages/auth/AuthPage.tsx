@@ -410,7 +410,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
   return (
     <div className="max-w-md mx-auto py-12 px-4">
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden transition-all">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xl overflow-hidden transition-all text-slate-900 dark:text-slate-100">
         {/* Header */}
         <div className="p-8 bg-gradient-to-br from-emerald-900 to-slate-900 text-white text-center space-y-3">
           <div className="w-12 h-12 bg-emerald-500 text-slate-950 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
@@ -830,8 +830,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     }}
                     className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
                       role === 'RESIDENT'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-300 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                     }`}
                   >
                     🇵🇭 Resident Household
@@ -844,8 +844,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     }}
                     className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
                       role === 'BARANGAY_OFFICIAL'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-300 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                     }`}
                   >
                     🏛️ Barangay Official
@@ -1145,7 +1145,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           )}
 
           {/* Toggle Login/Register/Forgot */}
-          <div className="text-center pt-2 border-t border-slate-100 flex flex-col items-center gap-2">
+          <div className="text-center pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center gap-2">
             {mode === 'forgot_password' ? (
               <button
                 onClick={() => {
@@ -1154,7 +1154,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   setError(null);
                   setSuccessInfo(null);
                 }}
-                className="text-xs font-bold text-emerald-700 hover:underline"
+                className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
               >
                 Remembered your password? Sign in
               </button>
@@ -1165,7 +1165,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   setError(null);
                   setSuccessInfo(null);
                 }}
-                className="text-xs font-bold text-emerald-700 hover:underline"
+                className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
               >
                 Don't have an account? Register household
               </button>
@@ -1177,7 +1177,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   setError(null);
                   setSuccessInfo(null);
                 }}
-                className="text-xs font-bold text-emerald-700 hover:underline"
+                className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
               >
                 Already registered? Sign in
               </button>

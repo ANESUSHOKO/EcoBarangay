@@ -36,6 +36,13 @@ interface ResidentDashboardProps {
   lang?: Language;
 }
 
+// Module-level persistent cache across client-side navigation between tabs
+const residentDashboardCache = {
+  logs: new Map<string, UserActivityLog[]>(),
+  schedules: new Map<string, GarbageSchedule[]>(),
+  announcements: new Map<string, Announcement[]>(),
+};
+
 export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   currentUser,
   currentBarangay,
@@ -44,9 +51,44 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   lang = 'en'
 }) => {
   const t = (key: any) => getTranslation(lang as Language, key);
-  const [schedules, setSchedules] = useState<GarbageSchedule[]>([]);
-  const [logs, setLogs] = useState<UserActivityLog[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+
+  // Initialize state with in-memory cache or localStorage to prevent losing state when navigating to other tabs
+  const [schedules, setSchedules] = useState<GarbageSchedule[]>(() => {
+    if (currentBarangay?.id && residentDashboardCache.schedules.has(currentBarangay.id)) {
+      return residentDashboardCache.schedules.get(currentBarangay.id)!;
+    }
+    return [];
+  });
+
+  const [logs, setLogs] = useState<UserActivityLog[]>(() => {
+    if (currentUser?.id) {
+      if (residentDashboardCache.logs.has(currentUser.id)) {
+        return residentDashboardCache.logs.get(currentUser.id)!;
+      }
+      try {
+        const saved = localStorage.getItem(`ecobarangay_user_logs_${currentUser.id}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            residentDashboardCache.logs.set(currentUser.id, parsed);
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    return [];
+  });
+
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
+    if (currentBarangay?.id && residentDashboardCache.announcements.has(currentBarangay.id)) {
+      return residentDashboardCache.announcements.get(currentBarangay.id)!;
+    }
+    return [];
+  });
+
+  const [loadingLogs, setLoadingLogs] = useState(!residentDashboardCache.logs.has(currentUser?.id || ''));
 
   // Log Waste Form Modal
   const [logModalOpen, setLogModalOpen] = useState(false);
@@ -59,10 +101,60 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   const [logSuccessMessage, setLogSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getSchedules(currentBarangay.id).then(setSchedules).catch(console.error);
-    api.getActivityLogs(currentUser.id).then(setLogs).catch(console.error);
-    api.getAnnouncements(currentBarangay.id).then(setAnnouncements).catch(console.error);
-  }, [currentBarangay.id, currentUser.id]);
+    let isSubscribed = true;
+
+    if (currentBarangay?.id) {
+      api.getSchedules(currentBarangay.id)
+        .then(res => {
+          if (isSubscribed && Array.isArray(res)) {
+            setSchedules(res);
+            residentDashboardCache.schedules.set(currentBarangay.id, res);
+          }
+        })
+        .catch(console.error);
+
+      api.getAnnouncements(currentBarangay.id)
+        .then(res => {
+          if (isSubscribed && Array.isArray(res)) {
+            setAnnouncements(res);
+            residentDashboardCache.announcements.set(currentBarangay.id, res);
+          }
+        })
+        .catch(console.error);
+    }
+
+    if (currentUser?.id) {
+      api.getActivityLogs(currentUser.id)
+        .then(res => {
+          if (isSubscribed && Array.isArray(res)) {
+            setLogs(prev => {
+              // If previous logs exist and server returns empty due to fresh instance, retain existing valid logs
+              if (res.length === 0 && prev.length > 0) {
+                return prev;
+              }
+              residentDashboardCache.logs.set(currentUser.id, res);
+              try {
+                localStorage.setItem(`ecobarangay_user_logs_${currentUser.id}`, JSON.stringify(res));
+              } catch (e) {
+                console.warn(e);
+              }
+              return res;
+            });
+          }
+        })
+        .catch(err => {
+          console.error('Error loading activity logs:', err);
+          // On network/API error, retain existing logs from cache/state!
+        })
+        .finally(() => {
+          if (isSubscribed) setLoadingLogs(false);
+        });
+    }
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [currentBarangay?.id, currentUser?.id]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,8 +184,18 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           setPhotoUrl('');
         }, 2000);
 
-        // Refresh activity logs
-        api.getActivityLogs(currentUser.id).then(setLogs).catch(console.error);
+        // Refresh activity logs and update cache immediately
+        api.getActivityLogs(currentUser.id).then(newLogs => {
+          if (Array.isArray(newLogs)) {
+            setLogs(newLogs);
+            residentDashboardCache.logs.set(currentUser.id, newLogs);
+            try {
+              localStorage.setItem(`ecobarangay_user_logs_${currentUser.id}`, JSON.stringify(newLogs));
+            } catch (e) {
+              console.warn(e);
+            }
+          }
+        }).catch(console.error);
       }
     } catch (err) {
       console.error(err);
@@ -284,17 +386,17 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Col: Barangay Garbage Collection Schedule */}
-        <div className="lg:col-span-6 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="lg:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-emerald-600" /> Collection Schedule
               </h3>
-              <p className="text-xs text-slate-500">Official trash collection for Brgy. {currentBarangay.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Official trash collection for Brgy. {currentBarangay.name}</p>
             </div>
             <button
               onClick={() => onNavigate('schedule')}
-              className="text-xs font-bold text-emerald-700 hover:underline"
+              className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
             >
               Full Calendar
             </button>
@@ -304,25 +406,25 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
             {schedules.map(sch => (
               <div
                 key={sch.id}
-                className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-start justify-between"
+                className="p-4 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between"
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-slate-800">{sch.dayOfWeek}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100">{sch.dayOfWeek}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300">
                       {sch.wasteType}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-slate-400" /> {sch.timeSlot}
                   </div>
-                  <p className="text-xs text-slate-600 mt-1.5">{sch.instructions}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5">{sch.instructions}</p>
                 </div>
               </div>
             ))}
 
             {schedules.length === 0 && (
-              <p className="text-xs text-slate-400 py-4 text-center">
+              <p className="text-xs text-slate-400 dark:text-slate-500 py-4 text-center">
                 No collection schedule logged for this barangay yet.
               </p>
             )}
@@ -330,32 +432,32 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
         </div>
 
         {/* Right Col: Personal Eco Activity Log */}
-        <div className="lg:col-span-6 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="lg:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-emerald-600" /> Activity & Eco Points History
               </h3>
-              <p className="text-xs text-slate-500">Your recent sustainability contributions</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Your recent sustainability contributions</p>
             </div>
           </div>
 
           <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
             {logs.map(log => (
-              <div key={log.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <div key={log.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-100 dark:border-slate-700/80 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-bold text-slate-800">{log.title}</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">{log.description}</div>
-                  <div className="text-[10px] text-slate-400 mt-1">{new Date(log.createdAt).toLocaleString()}</div>
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{log.title}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{log.description}</div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{new Date(log.createdAt).toLocaleString()}</div>
                 </div>
-                <div className="px-3 py-1 bg-amber-100 text-amber-900 font-extrabold text-xs rounded-full">
+                <div className="px-3 py-1 bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 font-extrabold text-xs rounded-full">
                   +{log.pointsEarned} pts
                 </div>
               </div>
             ))}
 
             {logs.length === 0 && (
-              <p className="text-xs text-slate-400 py-8 text-center">
+              <p className="text-xs text-slate-400 dark:text-slate-500 py-8 text-center">
                 No activity logs yet. Try logging waste or joining a challenge!
               </p>
             )}

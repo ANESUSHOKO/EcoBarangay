@@ -53,6 +53,8 @@ export interface Province {
   code: string;
   name: string;
   regionCode: string;
+  psgcCode?: string;
+  isIndependentCity?: boolean;
 }
 
 export interface City {
@@ -508,13 +510,17 @@ export interface PartnerOrganization {
   id: string;
   name: string;
   type: 'School' | 'NGO' | 'Community Organization';
-  barangayId: string;
-  barangayName: string;
+  barangayId?: string;
+  barangayName?: string;
   verified: boolean;
   description: string;
-  contactEmail: string;
+  contactEmail?: string;
   logoUrl?: string;
-  eventsCreatedCount: number;
+  eventsCreatedCount?: number;
+  acronym?: string;
+  category?: string;
+  scope?: string;
+  activeProjectsCount?: number;
 }
 
 export interface FamilyGroupMember {

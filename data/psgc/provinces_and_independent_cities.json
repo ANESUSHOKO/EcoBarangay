@@ -1,0 +1,978 @@
+[
+  {
+    "code": "PH14001",
+    "psgcCode": "1400100000",
+    "name": "Abra",
+    "regionCode": "PH14",
+    "regionName": "Cordillera Administrative Region (CAR)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH16002",
+    "psgcCode": "1600200000",
+    "name": "Agusan del Norte",
+    "regionCode": "PH16",
+    "regionName": "Region XIII (Caraga)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH16003",
+    "psgcCode": "1600300000",
+    "name": "Agusan del Sur",
+    "regionCode": "PH16",
+    "regionName": "Region XIII (Caraga)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH06004",
+    "psgcCode": "0600400000",
+    "name": "Aklan",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH05005",
+    "psgcCode": "0500500000",
+    "name": "Albay",
+    "regionCode": "PH05",
+    "regionName": "Region V (Bicol Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0305401",
+    "psgcCode": "0330100000",
+    "name": "Angeles City",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH06006",
+    "psgcCode": "0600600000",
+    "name": "Antique",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH14081",
+    "psgcCode": "1408100000",
+    "name": "Apayao",
+    "regionCode": "PH14",
+    "regionName": "Cordillera Administrative Region (CAR)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH03077",
+    "psgcCode": "0307700000",
+    "name": "Aurora",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0604501",
+    "psgcCode": "0630200000",
+    "name": "Bacolod City (Capital)",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1401102",
+    "psgcCode": "1430300000",
+    "name": "Baguio City",
+    "regionCode": "PH14",
+    "regionName": "Cordillera Administrative Region (CAR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH19007",
+    "psgcCode": "1900700000",
+    "name": "Basilan",
+    "regionCode": "PH19",
+    "regionName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH03008",
+    "psgcCode": "0300800000",
+    "name": "Bataan",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH02009",
+    "psgcCode": "0200900000",
+    "name": "Batanes",
+    "regionCode": "PH02",
+    "regionName": "Region II (Cagayan Valley)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH04010",
+    "psgcCode": "0401000000",
+    "name": "Batangas",
+    "regionCode": "PH04",
+    "regionName": "Region IV-A (Calabarzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH14011",
+    "psgcCode": "1401100000",
+    "name": "Benguet",
+    "regionCode": "PH14",
+    "regionName": "Cordillera Administrative Region (CAR)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH08078",
+    "psgcCode": "0807800000",
+    "name": "Biliran",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH07012",
+    "psgcCode": "0701200000",
+    "name": "Bohol",
+    "regionCode": "PH07",
+    "regionName": "Region VII (Central Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH10013",
+    "psgcCode": "1001300000",
+    "name": "Bukidnon",
+    "regionCode": "PH10",
+    "regionName": "Region X (Northern Mindanao)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH03014",
+    "psgcCode": "0301400000",
+    "name": "Bulacan",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH1600202",
+    "psgcCode": "1630400000",
+    "name": "Butuan City (Capital)",
+    "regionCode": "PH16",
+    "regionName": "Region XIII (Caraga)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH02015",
+    "psgcCode": "0201500000",
+    "name": "Cagayan",
+    "regionCode": "PH02",
+    "regionName": "Region II (Cagayan Valley)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH1004305",
+    "psgcCode": "1030500000",
+    "name": "Cagayan de Oro City (Capital)",
+    "regionCode": "PH10",
+    "regionName": "Region X (Northern Mindanao)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307501",
+    "psgcCode": "1380100000",
+    "name": "Caloocan City",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH05016",
+    "psgcCode": "0501600000",
+    "name": "Camarines Norte",
+    "regionCode": "PH05",
+    "regionName": "Region V (Bicol Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH05017",
+    "psgcCode": "0501700000",
+    "name": "Camarines Sur",
+    "regionCode": "PH05",
+    "regionName": "Region V (Bicol Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH10018",
+    "psgcCode": "1001800000",
+    "name": "Camiguin",
+    "regionCode": "PH10",
+    "regionName": "Region X (Northern Mindanao)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH06019",
+    "psgcCode": "0601900000",
+    "name": "Capiz",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH05020",
+    "psgcCode": "0502000000",
+    "name": "Catanduanes",
+    "regionCode": "PH05",
+    "regionName": "Region V (Bicol Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH04021",
+    "psgcCode": "0402100000",
+    "name": "Cavite",
+    "regionCode": "PH04",
+    "regionName": "Region IV-A (Calabarzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH07022",
+    "psgcCode": "0702200000",
+    "name": "Cebu",
+    "regionCode": "PH07",
+    "regionName": "Region VII (Central Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0702217",
+    "psgcCode": "0730600000",
+    "name": "Cebu City (Capital)",
+    "regionCode": "PH07",
+    "regionName": "Region VII (Central Visayas)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH0909701",
+    "psgcCode": "",
+    "name": "City of Isabela",
+    "regionCode": "PH09",
+    "regionName": "Region IX (Zamboanga Peninsula)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH09901",
+    "psgcCode": "0990100000",
+    "name": "City of Isabela (not a province)",
+    "regionCode": "PH09",
+    "regionName": "Region IX (Zamboanga Peninsula)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307601",
+    "psgcCode": "1380200000",
+    "name": "City of Las Piñas",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307602",
+    "psgcCode": "1380300000",
+    "name": "City of Makati",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307502",
+    "psgcCode": "1380400000",
+    "name": "City of Malabon",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307401",
+    "psgcCode": "1380500000",
+    "name": "City of Mandaluyong",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1303901",
+    "psgcCode": "1380600000",
+    "name": "City of Manila",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307402",
+    "psgcCode": "1380700000",
+    "name": "City of Marikina",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307603",
+    "psgcCode": "1380800000",
+    "name": "City of Muntinlupa",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307503",
+    "psgcCode": "1380900000",
+    "name": "City of Navotas",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307604",
+    "psgcCode": "1381000000",
+    "name": "City of Parañaque",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307403",
+    "psgcCode": "1381200000",
+    "name": "City of Pasig",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307405",
+    "psgcCode": "1381400000",
+    "name": "City of San Juan",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH0203135",
+    "psgcCode": "0203135000",
+    "name": "City of Santiago",
+    "regionCode": "PH02",
+    "regionName": "Region II (Cagayan Valley)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307504",
+    "psgcCode": "1381600000",
+    "name": "City of Valenzuela",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH12047",
+    "psgcCode": "1204700000",
+    "name": "Cotabato (North Cotabato)",
+    "regionCode": "PH12",
+    "regionName": "Region XII (Soccsksargen)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH1908703",
+    "psgcCode": "1908703000",
+    "name": "Cotabato City",
+    "regionCode": "PH19",
+    "regionName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH0105518",
+    "psgcCode": "0105518000",
+    "name": "Dagupan City",
+    "regionCode": "PH01",
+    "regionName": "Region I (Ilocos Region)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1102402",
+    "psgcCode": "1130700000",
+    "name": "Davao City",
+    "regionCode": "PH11",
+    "regionName": "Region XI (Davao Region)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH11086",
+    "psgcCode": "1108600000",
+    "name": "Davao Occidental",
+    "regionCode": "PH11",
+    "regionName": "Region XI (Davao Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH11025",
+    "psgcCode": "1102500000",
+    "name": "Davao Oriental",
+    "regionCode": "PH11",
+    "regionName": "Region XI (Davao Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH11082",
+    "psgcCode": "1108200000",
+    "name": "Davao de Oro (Compostela Valley)",
+    "regionCode": "PH11",
+    "regionName": "Region XI (Davao Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH11023",
+    "psgcCode": "1102300000",
+    "name": "Davao del Norte",
+    "regionCode": "PH11",
+    "regionName": "Region XI (Davao Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH11024",
+    "psgcCode": "1102400000",
+    "name": "Davao del Sur",
+    "regionCode": "PH11",
+    "regionName": "Region XI (Davao Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH16085",
+    "psgcCode": "1608500000",
+    "name": "Dinagat Islands",
+    "regionCode": "PH16",
+    "regionName": "Region XIII (Caraga)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH08026",
+    "psgcCode": "0802600000",
+    "name": "Eastern Samar",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH1206303",
+    "psgcCode": "1230800000",
+    "name": "General Santos City (Dadiangas)",
+    "regionCode": "PH12",
+    "regionName": "Region XII (Soccsksargen)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH06079",
+    "psgcCode": "0607900000",
+    "name": "Guimaras",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH14027",
+    "psgcCode": "1402700000",
+    "name": "Ifugao",
+    "regionCode": "PH14",
+    "regionName": "Cordillera Administrative Region (CAR)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH1003504",
+    "psgcCode": "1030900000",
+    "name": "Iligan City",
+    "regionCode": "PH10",
+    "regionName": "Region X (Northern Mindanao)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH01028",
+    "psgcCode": "0102800000",
+    "name": "Ilocos Norte",
+    "regionCode": "PH01",
+    "regionName": "Region I (Ilocos Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH01029",
+    "psgcCode": "0102900000",
+    "name": "Ilocos Sur",
+    "regionCode": "PH01",
+    "regionName": "Region I (Ilocos Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH06030",
+    "psgcCode": "0603000000",
+    "name": "Iloilo",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0603022",
+    "psgcCode": "0631000000",
+    "name": "Iloilo City (Capital)",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH02031",
+    "psgcCode": "0203100000",
+    "name": "Isabela",
+    "regionCode": "PH02",
+    "regionName": "Region II (Cagayan Valley)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH14032",
+    "psgcCode": "1403200000",
+    "name": "Kalinga",
+    "regionCode": "PH14",
+    "regionName": "Cordillera Administrative Region (CAR)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH01033",
+    "psgcCode": "0103300000",
+    "name": "La Union",
+    "regionCode": "PH01",
+    "regionName": "Region I (Ilocos Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH04034",
+    "psgcCode": "0403400000",
+    "name": "Laguna",
+    "regionCode": "PH04",
+    "regionName": "Region IV-A (Calabarzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH10035",
+    "psgcCode": "1003500000",
+    "name": "Lanao del Norte",
+    "regionCode": "PH10",
+    "regionName": "Region X (Northern Mindanao)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH19036",
+    "psgcCode": "1903600000",
+    "name": "Lanao del Sur",
+    "regionCode": "PH19",
+    "regionName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0702226",
+    "psgcCode": "0731100000",
+    "name": "Lapu-Lapu City (Opon)",
+    "regionCode": "PH07",
+    "regionName": "Region VII (Central Visayas)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH08037",
+    "psgcCode": "0803700000",
+    "name": "Leyte",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0405624",
+    "psgcCode": "0431200000",
+    "name": "Lucena City (Capital)",
+    "regionCode": "PH04",
+    "regionName": "Region IV-A (Calabarzon)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH19087",
+    "psgcCode": "1908700000",
+    "name": "Maguindanao del Norte",
+    "regionCode": "PH19",
+    "regionName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH19088",
+    "psgcCode": "1908800000",
+    "name": "Maguindanao del Sur",
+    "regionCode": "PH19",
+    "regionName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0702230",
+    "psgcCode": "0731300000",
+    "name": "Mandaue City",
+    "regionCode": "PH07",
+    "regionName": "Region VII (Central Visayas)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH17040",
+    "psgcCode": "1704000000",
+    "name": "Marinduque",
+    "regionCode": "PH17",
+    "regionName": "Mimaropa Region",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH05041",
+    "psgcCode": "0504100000",
+    "name": "Masbate",
+    "regionCode": "PH05",
+    "regionName": "Region V (Bicol Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH10042",
+    "psgcCode": "1004200000",
+    "name": "Misamis Occidental",
+    "regionCode": "PH10",
+    "regionName": "Region X (Northern Mindanao)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH10043",
+    "psgcCode": "1004300000",
+    "name": "Misamis Oriental",
+    "regionCode": "PH10",
+    "regionName": "Region X (Northern Mindanao)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH14044",
+    "psgcCode": "1404400000",
+    "name": "Mountain Province",
+    "regionCode": "PH14",
+    "regionName": "Cordillera Administrative Region (CAR)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0501724",
+    "psgcCode": "0501724000",
+    "name": "Naga City",
+    "regionCode": "PH05",
+    "regionName": "Region V (Bicol Region)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH06045",
+    "psgcCode": "0604500000",
+    "name": "Negros Occidental",
+    "regionCode": "PH06",
+    "regionName": "Region VI (Western Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH07046",
+    "psgcCode": "0704600000",
+    "name": "Negros Oriental",
+    "regionCode": "PH07",
+    "regionName": "Region VII (Central Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH08048",
+    "psgcCode": "0804800000",
+    "name": "Northern Samar",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH03049",
+    "psgcCode": "0304900000",
+    "name": "Nueva Ecija",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH02050",
+    "psgcCode": "0205000000",
+    "name": "Nueva Vizcaya",
+    "regionCode": "PH02",
+    "regionName": "Region II (Cagayan Valley)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH17051",
+    "psgcCode": "1705100000",
+    "name": "Occidental Mindoro",
+    "regionCode": "PH17",
+    "regionName": "Mimaropa Region",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0307107",
+    "psgcCode": "0331400000",
+    "name": "Olongapo City",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH17052",
+    "psgcCode": "1705200000",
+    "name": "Oriental Mindoro",
+    "regionCode": "PH17",
+    "regionName": "Mimaropa Region",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0803738",
+    "psgcCode": "0803738000",
+    "name": "Ormoc City",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH17053",
+    "psgcCode": "1705300000",
+    "name": "Palawan",
+    "regionCode": "PH17",
+    "regionName": "Mimaropa Region",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH03054",
+    "psgcCode": "0305400000",
+    "name": "Pampanga",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH01055",
+    "psgcCode": "0105500000",
+    "name": "Pangasinan",
+    "regionCode": "PH01",
+    "regionName": "Region I (Ilocos Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH1307605",
+    "psgcCode": "1381100000",
+    "name": "Pasay City",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1705316",
+    "psgcCode": "1731500000",
+    "name": "Puerto Princesa City (Capital)",
+    "regionCode": "PH17",
+    "regionName": "Mimaropa Region",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH04056",
+    "psgcCode": "0405600000",
+    "name": "Quezon",
+    "regionCode": "PH04",
+    "regionName": "Region IV-A (Calabarzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH1307404",
+    "psgcCode": "1381300000",
+    "name": "Quezon City",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH02057",
+    "psgcCode": "0205700000",
+    "name": "Quirino",
+    "regionCode": "PH02",
+    "regionName": "Region II (Cagayan Valley)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH04058",
+    "psgcCode": "0405800000",
+    "name": "Rizal",
+    "regionCode": "PH04",
+    "regionName": "Region IV-A (Calabarzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH17059",
+    "psgcCode": "1705900000",
+    "name": "Romblon",
+    "regionCode": "PH17",
+    "regionName": "Mimaropa Region",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH08060",
+    "psgcCode": "0806000000",
+    "name": "Samar (Western Samar)",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH12080",
+    "psgcCode": "1208000000",
+    "name": "Sarangani",
+    "regionCode": "PH12",
+    "regionName": "Region XII (Soccsksargen)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH07061",
+    "psgcCode": "0706100000",
+    "name": "Siquijor",
+    "regionCode": "PH07",
+    "regionName": "Region VII (Central Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH05062",
+    "psgcCode": "0506200000",
+    "name": "Sorsogon",
+    "regionCode": "PH05",
+    "regionName": "Region V (Bicol Region)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH12063",
+    "psgcCode": "1206300000",
+    "name": "South Cotabato",
+    "regionCode": "PH12",
+    "regionName": "Region XII (Soccsksargen)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH08064",
+    "psgcCode": "0806400000",
+    "name": "Southern Leyte",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH12065",
+    "psgcCode": "1206500000",
+    "name": "Sultan Kudarat",
+    "regionCode": "PH12",
+    "regionName": "Region XII (Soccsksargen)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH19066",
+    "psgcCode": "1906600000",
+    "name": "Sulu",
+    "regionCode": "PH19",
+    "regionName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH16067",
+    "psgcCode": "1606700000",
+    "name": "Surigao del Norte",
+    "regionCode": "PH16",
+    "regionName": "Region XIII (Caraga)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH16068",
+    "psgcCode": "1606800000",
+    "name": "Surigao del Sur",
+    "regionCode": "PH16",
+    "regionName": "Region XIII (Caraga)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0803747",
+    "psgcCode": "0831600000",
+    "name": "Tacloban City (Capital)",
+    "regionCode": "PH08",
+    "regionName": "Region VIII (Eastern Visayas)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH1307607",
+    "psgcCode": "1381500000",
+    "name": "Taguig City",
+    "regionCode": "PH13",
+    "regionName": "National Capital Region (NCR)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH03069",
+    "psgcCode": "0306900000",
+    "name": "Tarlac",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH19070",
+    "psgcCode": "1907000000",
+    "name": "Tawi-Tawi",
+    "regionCode": "PH19",
+    "regionName": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH03071",
+    "psgcCode": "0307100000",
+    "name": "Zambales",
+    "regionCode": "PH03",
+    "regionName": "Region III (Central Luzon)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH0907332",
+    "psgcCode": "0931700000",
+    "name": "Zamboanga City",
+    "regionCode": "PH09",
+    "regionName": "Region IX (Zamboanga Peninsula)",
+    "isIndependentCity": true
+  },
+  {
+    "code": "PH09083",
+    "psgcCode": "0908300000",
+    "name": "Zamboanga Sibugay",
+    "regionCode": "PH09",
+    "regionName": "Region IX (Zamboanga Peninsula)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH09072",
+    "psgcCode": "0907200000",
+    "name": "Zamboanga del Norte",
+    "regionCode": "PH09",
+    "regionName": "Region IX (Zamboanga Peninsula)",
+    "isIndependentCity": false
+  },
+  {
+    "code": "PH09073",
+    "psgcCode": "0907300000",
+    "name": "Zamboanga del Sur",
+    "regionCode": "PH09",
+    "regionName": "Region IX (Zamboanga Peninsula)",
+    "isIndependentCity": false
+  }
+]

@@ -83,7 +83,8 @@ async function safeCall<T>(remoteCall: () => Promise<T>, fallbackCall: () => T |
   try {
     return await remoteCall();
   } catch (err) {
-    isServerAvailable = false;
+    // A single route error or transient issue must never permanently mark the server offline
+    console.warn('Remote API call fell back to client store:', err);
     return Promise.resolve(fallbackCall());
   }
 }

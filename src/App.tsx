@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './lib/api';
+import { clientStore } from './lib/clientStore';
 import { User, Barangay, Language } from './types';
 import { ThemeMode, getInitialTheme, setThemeMode } from './lib/theme';
 import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav, DeveloperInfoModal } from './components';
@@ -115,11 +116,11 @@ export function App() {
             }
           }
         })
-        .catch(() => {
-          localStorage.removeItem('ecobarangay_current_user_id');
-          if (window.location.hash === '#dashboard') {
-            window.history.replaceState({ tab: 'home' }, '', '#home');
-            setActiveTabState('home');
+        .catch(err => {
+          console.warn('Network issue restoring user session, checking client fallback:', err);
+          const localUser = clientStore.getUserProfile(savedUserId);
+          if (localUser) {
+            setCurrentUser(localUser);
           }
         });
     } else {

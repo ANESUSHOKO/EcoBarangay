@@ -1,0 +1,17 @@
+{
+  "dataset_name": "Philippine Administrative Location Boundaries & PSGC Directory",
+  "source": "https://data.bettergov.ph/datasets/23",
+  "repository": "https://github.com/bendlikeabamboo/barangay-boundaries-repository",
+  "release_tag": "v2026.4.13.0",
+  "psgc_snapshot": "2023-10-24",
+  "namria_version": "2023-11-06",
+  "imported_at": "2026-09-29T08:25:24Z",
+  "counts": {
+    "regions": 17,
+    "provinces": 82,
+    "provinces_and_independent_cities": 122,
+    "cities_and_municipalities": 1635,
+    "barangays": 42026
+  },
+  "update_instructions": "To update this dataset when BetterGov releases a new version, run `python3 scripts/import_bettergov_locations.py`."
+}

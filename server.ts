@@ -523,6 +523,118 @@ async function startServer() {
     res.status(201).json(schedule);
   });
 
+  // Personal Calendar
+  app.get('/api/calendar', (req, res) => {
+    const { userId, barangayId } = req.query;
+    res.json(dbStore.getCalendarEvents(userId as string, barangayId as string));
+  });
+
+  app.post('/api/calendar', (req, res) => {
+    const event = dbStore.addCalendarEvent(req.body);
+    res.status(201).json(event);
+  });
+
+  // Bulk Waste Pickups
+  app.get('/api/bulk-pickups', (req, res) => {
+    const { userId, barangayId } = req.query;
+    res.json(dbStore.getBulkPickups(userId as string, barangayId as string));
+  });
+
+  app.post('/api/bulk-pickups', (req, res) => {
+    const item = dbStore.createBulkPickup(req.body);
+    res.status(201).json(item);
+  });
+
+  app.post('/api/bulk-pickups/:id/status', (req, res) => {
+    const { status, scheduledDate } = req.body;
+    const updated = dbStore.updateBulkPickupStatus(req.params.id, status, scheduledDate);
+    if (!updated) return res.status(404).json({ error: 'Pickup request not found' });
+    res.json(updated);
+  });
+
+  // Businesses & Partner Organizations
+  app.get('/api/businesses', (req, res) => {
+    const { barangayId, category } = req.query;
+    res.json(dbStore.getEcoBusinesses(barangayId as string, category as string));
+  });
+
+  app.post('/api/businesses', (req, res) => {
+    const biz = dbStore.createEcoBusiness(req.body);
+    res.status(201).json(biz);
+  });
+
+  app.get('/api/organizations', (req, res) => {
+    const { barangayId } = req.query;
+    res.json(dbStore.getPartnerOrganizations(barangayId as string));
+  });
+
+  app.post('/api/organizations', (req, res) => {
+    const org = dbStore.createPartnerOrganization(req.body);
+    res.status(201).json(org);
+  });
+
+  // Family Groups
+  app.get('/api/family-group/:userId', (req, res) => {
+    const group = dbStore.getFamilyGroup(req.params.userId);
+    res.json(group || null);
+  });
+
+  app.post('/api/family-group', (req, res) => {
+    const { data, leaderUser } = req.body;
+    const group = dbStore.createFamilyGroup(data, leaderUser);
+    res.status(201).json(group);
+  });
+
+  // Assets, Trees, Alerts, Most Improved, Transparency
+  app.get('/api/assets', (req, res) => {
+    const { barangayId, category } = req.query;
+    res.json(dbStore.getAssets(barangayId as string, category as string));
+  });
+
+  app.post('/api/assets', (req, res) => {
+    const asset = dbStore.createAsset(req.body);
+    res.status(201).json(asset);
+  });
+
+  app.get('/api/trees', (req, res) => {
+    const { barangayId } = req.query;
+    res.json(dbStore.getTrees(barangayId as string));
+  });
+
+  app.post('/api/trees', (req, res) => {
+    const tree = dbStore.addTree(req.body);
+    res.status(201).json(tree);
+  });
+
+  app.get('/api/alerts', (req, res) => {
+    res.json(dbStore.getAlerts());
+  });
+
+  app.post('/api/alerts', (req, res) => {
+    const alert = dbStore.createAlert(req.body);
+    res.status(201).json(alert);
+  });
+
+  app.get('/api/most-improved', (req, res) => {
+    res.json(dbStore.getMostImprovedBarangays());
+  });
+
+  app.get('/api/transparency/:barangayId', (req, res) => {
+    res.json(dbStore.getTransparencyMetrics(req.params.barangayId));
+  });
+
+  app.post('/api/facilities/:id/reviews', (req, res) => {
+    const facility = dbStore.addFacilityReview(req.params.id, req.body);
+    if (!facility) return res.status(404).json({ error: 'Facility not found' });
+    res.json(facility);
+  });
+
+  app.post('/api/facilities/:id/status', (req, res) => {
+    const facility = dbStore.updateFacilityStatus(req.params.id, req.body.status);
+    if (!facility) return res.status(404).json({ error: 'Facility not found' });
+    res.json(facility);
+  });
+
   // Global Search
   app.get('/api/search', (req, res) => {
     const q = (req.query.q as string) || '';

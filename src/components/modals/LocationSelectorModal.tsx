@@ -25,6 +25,7 @@ export const LocationSelectorModal: React.FC<Props> = ({
   const [selectedProvince, setSelectedProvince] = useState<string>('');
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [loadingBarangays, setLoadingBarangays] = useState<boolean>(false);
 
   const [detectingLocation, setDetectingLocation] = useState<boolean>(false);
   const [detectedNearest, setDetectedNearest] = useState<{
@@ -41,35 +42,50 @@ export const LocationSelectorModal: React.FC<Props> = ({
       api.getRegions().then(setRegions).catch(console.error);
       api.getProvinces().then(setProvinces).catch(console.error);
       api.getCities().then(setCities).catch(console.error);
-      api.getBarangays().then(setBarangays).catch(console.error);
     }
   }, [isOpen]);
 
   // When region changes
   useEffect(() => {
     if (selectedRegion) {
-      api.getProvinces(selectedRegion).then(setProvinces).catch(console.error);
-      api.getCities(undefined, selectedRegion).then(setCities).catch(console.error);
+      api.getProvinces(selectedRegion).then(provs => {
+        setProvinces(provs);
+      }).catch(console.error);
       setSelectedProvince('');
       setSelectedCity('');
+      setCities([]);
     } else {
       api.getProvinces().then(setProvinces).catch(console.error);
       api.getCities().then(setCities).catch(console.error);
+      setSelectedProvince('');
+      setSelectedCity('');
     }
   }, [selectedRegion]);
 
-  // When province changes
+  // When province/independent city changes
   useEffect(() => {
     if (selectedProvince) {
-      api.getCities(selectedProvince, selectedRegion || undefined).then(setCities).catch(console.error);
+      const matchProv = provinces.find(p => p.code === selectedProvince);
+      api.getCities(selectedProvince, selectedRegion || undefined).then(cList => {
+        setCities(cList);
+        // If it's an independent city (HUC/ICC) or has a single direct municipality, auto-select it
+        if (matchProv?.isIndependentCity || cList.length === 1) {
+          setSelectedCity(cList[0]?.code || selectedProvince);
+        } else {
+          setSelectedCity('');
+        }
+      }).catch(console.error);
+    } else if (selectedRegion) {
+      api.getCities(undefined, selectedRegion).then(setCities).catch(console.error);
       setSelectedCity('');
-    } else if (!selectedRegion) {
-      api.getCities().then(setCities).catch(console.error);
+    } else {
+      setSelectedCity('');
     }
-  }, [selectedProvince, selectedRegion]);
+  }, [selectedProvince, selectedRegion, provinces]);
 
   // Fetch filtered barangays
   useEffect(() => {
+    setLoadingBarangays(true);
     api
       .getBarangays({
         regionCode: selectedRegion || undefined,
@@ -78,7 +94,8 @@ export const LocationSelectorModal: React.FC<Props> = ({
         search: searchQuery || undefined,
       })
       .then(setBarangays)
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoadingBarangays(false));
   }, [selectedRegion, selectedProvince, selectedCity, searchQuery]);
 
   const handleDetectLocation = () => {
@@ -221,13 +238,15 @@ export const LocationSelectorModal: React.FC<Props> = ({
           {/* Cascading Dropdowns */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Region</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                1. Region
+              </label>
               <select
                 value={selectedRegion}
                 onChange={e => setSelectedRegion(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="">All Regions</option>
+                <option value="">All Regions ({regions.length})</option>
                 {regions.map(r => (
                   <option key={r.code} value={r.code}>
                     {r.name}
@@ -237,29 +256,37 @@ export const LocationSelectorModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Province / District</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                {selectedRegion === 'PH13' ? '2. City / Municipality (NCR)' : '2. Province / Independent City'}
+              </label>
               <select
                 value={selectedProvince}
                 onChange={e => setSelectedProvince(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="">All Provinces</option>
+                <option value="">
+                  {selectedRegion ? 'Choose Province / City...' : 'Select a Region First'}
+                </option>
                 {provinces.map(p => (
                   <option key={p.code} value={p.code}>
-                    {p.name}
+                    {p.name}{p.isIndependentCity ? ' (Independent City)' : ''}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">City / Municipality</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                3. Municipality / City
+              </label>
               <select
                 value={selectedCity}
                 onChange={e => setSelectedCity(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="">All Cities</option>
+                <option value="">
+                  {selectedProvince ? 'Choose Municipality / City...' : 'Select Province First'}
+                </option>
                 {cities.map(c => (
                   <option key={c.code} value={c.code}>
                     {c.name}
@@ -271,9 +298,16 @@ export const LocationSelectorModal: React.FC<Props> = ({
 
           {/* Barangay Results Grid */}
           <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">
-              Available Barangays ({barangays.length})
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                4. Available Barangays ({barangays.length})
+              </label>
+              {loadingBarangays && (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading barangays...
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
               {barangays.map(b => {
                 const isSelected = b.id === currentBarangayId;

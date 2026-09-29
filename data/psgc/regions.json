@@ -1,0 +1,104 @@
+[
+  {
+    "code": "PH19",
+    "psgcCode": "1900000000",
+    "name": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+    "altName": "BARMM"
+  },
+  {
+    "code": "PH14",
+    "psgcCode": "1400000000",
+    "name": "Cordillera Administrative Region (CAR)",
+    "altName": "CAR"
+  },
+  {
+    "code": "PH17",
+    "psgcCode": "1700000000",
+    "name": "Mimaropa Region",
+    "altName": ""
+  },
+  {
+    "code": "PH13",
+    "psgcCode": "1300000000",
+    "name": "National Capital Region (NCR)",
+    "altName": "NCR"
+  },
+  {
+    "code": "PH01",
+    "psgcCode": "0100000000",
+    "name": "Region I (Ilocos Region)",
+    "altName": "Ilocos Region"
+  },
+  {
+    "code": "PH02",
+    "psgcCode": "0200000000",
+    "name": "Region II (Cagayan Valley)",
+    "altName": "Cagayan Valley"
+  },
+  {
+    "code": "PH03",
+    "psgcCode": "0300000000",
+    "name": "Region III (Central Luzon)",
+    "altName": "Central Luzon"
+  },
+  {
+    "code": "PH04",
+    "psgcCode": "0400000000",
+    "name": "Region IV-A (Calabarzon)",
+    "altName": "Calabarzon"
+  },
+  {
+    "code": "PH09",
+    "psgcCode": "0900000000",
+    "name": "Region IX (Zamboanga Peninsula)",
+    "altName": "Zamboanga Peninsula"
+  },
+  {
+    "code": "PH05",
+    "psgcCode": "0500000000",
+    "name": "Region V (Bicol Region)",
+    "altName": "Bicol Region"
+  },
+  {
+    "code": "PH06",
+    "psgcCode": "0600000000",
+    "name": "Region VI (Western Visayas)",
+    "altName": "Western Visayas"
+  },
+  {
+    "code": "PH07",
+    "psgcCode": "0700000000",
+    "name": "Region VII (Central Visayas)",
+    "altName": "Central Visayas"
+  },
+  {
+    "code": "PH08",
+    "psgcCode": "0800000000",
+    "name": "Region VIII (Eastern Visayas)",
+    "altName": "Eastern Visayas"
+  },
+  {
+    "code": "PH10",
+    "psgcCode": "1000000000",
+    "name": "Region X (Northern Mindanao)",
+    "altName": "Northern Mindanao"
+  },
+  {
+    "code": "PH11",
+    "psgcCode": "1100000000",
+    "name": "Region XI (Davao Region)",
+    "altName": "Davao Region"
+  },
+  {
+    "code": "PH12",
+    "psgcCode": "1200000000",
+    "name": "Region XII (Soccsksargen)",
+    "altName": "Soccsksargen"
+  },
+  {
+    "code": "PH16",
+    "psgcCode": "1600000000",
+    "name": "Region XIII (Caraga)",
+    "altName": "Caraga"
+  }
+]
