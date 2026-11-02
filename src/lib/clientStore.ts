@@ -32,7 +32,6 @@ import {
   BarangayImprovement,
   PersonalCalendarEvent
 } from '../types';
-import { hashPasswordClient, verifyPasswordClient } from './authCrypto';
 import {
   INITIAL_REGIONS,
   INITIAL_PROVINCES,
@@ -61,14 +60,6 @@ import {
   INITIAL_CALENDAR_EVENTS,
   INITIAL_BARANGAY_IMPROVEMENTS
 } from '../server/initialData';
-import { db } from './firebase';
-import {
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  collection
-} from 'firebase/firestore';
 
 const STORE_VERSION = 'ecobarangay_v2_clean_prod';
 
@@ -150,34 +141,6 @@ class ClientStore {
   private calendarEvents: PersonalCalendarEvent[] = loadStorage('ecobarangay_calendarEvents', INITIAL_CALENDAR_EVENTS);
   private improvements: BarangayImprovement[] = loadStorage('ecobarangay_improvements', INITIAL_BARANGAY_IMPROVEMENTS);
 
-  constructor() {
-    this.syncUsersFromFirestore();
-  }
-
-  public async syncUsersFromFirestore() {
-    try {
-      const snap = await getDocs(collection(db, 'users'));
-      if (!snap.empty) {
-        snap.forEach(docSnap => {
-          const remoteUser = docSnap.data() as User;
-          if (remoteUser && remoteUser.email) {
-            const idx = this.users.findIndex(
-              u => u.id === remoteUser.id || u.email.toLowerCase() === remoteUser.email.toLowerCase()
-            );
-            if (idx >= 0) {
-              this.users[idx] = { ...this.users[idx], ...remoteUser };
-            } else {
-              this.users.push(remoteUser);
-            }
-          }
-        });
-        this.saveUsers();
-      }
-    } catch (err) {
-      console.warn('ClientStore initial Firestore fetch note:', err);
-    }
-  }
-
   private saveUsers() { saveStorage('ecobarangay_users', this.users); }
   private saveBarangays() { saveStorage('ecobarangay_barangays', this.barangays); }
   private saveFacilities() { saveStorage('ecobarangay_facilities', this.facilities); }
@@ -225,335 +188,6 @@ class ClientStore {
       cleanupActivities,
       reportsResolved
     };
-  }
-
-  // In-memory OTP session map for client store
-  private otpSessions: Map<string, { otp: string; expiresAt: number; attempts: number }> = new Map();
-  private passwordResetSessions: Map<string, { otp: string; expiresAt: number; attempts: number }> = new Map();
-
-  // Auth
-  public async login(email: string, password?: string) {
-    const cleanEmail = email.trim().toLowerCase();
-    let user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
-
-    if (!user) {
-      try {
-        const snap = await getDocs(collection(db, 'users'));
-        snap.forEach(docSnap => {
-          const u = docSnap.data() as User;
-          if (u.email && u.email.toLowerCase() === cleanEmail) {
-            user = u;
-            if (!this.users.some(x => x.id === u.id)) {
-              this.users.push(u);
-              this.saveUsers();
-            }
-          }
-        });
-      } catch (err) {
-        console.warn('Firestore lookup during login:', err);
-      }
-    }
-
-    if (!user) {
-      return { success: false, message: 'No account found with this email. Please register below.' };
-    }
-
-    if (!password) {
-      return { success: false, message: 'Password is required.' };
-    }
-
-    // Verify password strictly against account hash
-    const isPasswordValid = await verifyPasswordClient(password, user.passwordHash);
-    if (!isPasswordValid) {
-      return { success: false, message: 'Incorrect password. Please try again.' };
-    }
-
-    // Generate 6-digit OTP for email verification
-    const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-    this.otpSessions.set(cleanEmail, {
-      otp: randomOtp,
-      expiresAt,
-      attempts: 0,
-    });
-
-    return {
-      success: true,
-      requireOtp: true,
-      email: user.email,
-      simulatedOtpCode: randomOtp,
-      message: `A 6-digit verification code has been sent to ${user.email}.`,
-    };
-  }
-
-  public async verifyOtp(email: string, otp: string) {
-    const cleanEmail = email.trim().toLowerCase();
-    const session = this.otpSessions.get(cleanEmail);
-
-    if (!session) {
-      return { success: false, message: 'No verification session found. Please sign in again.' };
-    }
-
-    if (Date.now() > session.expiresAt) {
-      this.otpSessions.delete(cleanEmail);
-      return { success: false, message: 'Verification code has expired. Please request a new code.' };
-    }
-
-    session.attempts += 1;
-    if (session.otp !== otp.trim()) {
-      return { success: false, message: 'Invalid verification code. Please check your email and try again.' };
-    }
-
-    this.otpSessions.delete(cleanEmail);
-    const user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
-    if (!user) {
-      return { success: false, message: 'User account not found.' };
-    }
-
-    const { passwordHash: _, ...safeUser } = user;
-    return { success: true, user: safeUser as User };
-  }
-
-  public async resendOtp(email: string) {
-    const cleanEmail = email.trim().toLowerCase();
-    const user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
-    if (!user) {
-      return { success: false, message: 'User account not found.' };
-    }
-
-    const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-    this.otpSessions.set(cleanEmail, {
-      otp: randomOtp,
-      expiresAt,
-      attempts: 0,
-    });
-
-    return {
-      success: true,
-      email: user.email,
-      simulatedOtpCode: randomOtp,
-      message: `A new 6-digit verification code has been sent to ${user.email}.`,
-    };
-  }
-
-  public async requestPasswordReset(email: string) {
-    const cleanEmail = email.trim().toLowerCase();
-    let user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
-
-    if (!user) {
-      try {
-        const snap = await getDocs(collection(db, 'users'));
-        snap.forEach(docSnap => {
-          const u = docSnap.data() as User;
-          if (u.email && u.email.toLowerCase() === cleanEmail) {
-            user = u;
-            if (!this.users.some(x => x.id === u.id)) {
-              this.users.push(u);
-            }
-          }
-        });
-      } catch (err) {
-        console.error('Error finding user for reset in Firestore:', err);
-      }
-    }
-
-    if (!user) {
-      return { success: false, message: 'No registered account found with this email address.' };
-    }
-
-    const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000;
-    this.passwordResetSessions.set(cleanEmail, {
-      otp: randomOtp,
-      expiresAt,
-      attempts: 0,
-    });
-
-    return {
-      success: true,
-      email: user.email,
-      simulatedOtpCode: randomOtp,
-      message: `A 6-digit password reset code has been sent to ${user.email}.`,
-    };
-  }
-
-  public async resetPassword(email: string, otp: string, newPassword: string) {
-    const cleanEmail = email.trim().toLowerCase();
-    const session = this.passwordResetSessions.get(cleanEmail);
-
-    if (!session) {
-      return { success: false, message: 'No password reset request found. Please request a code first.' };
-    }
-
-    if (Date.now() > session.expiresAt) {
-      this.passwordResetSessions.delete(cleanEmail);
-      return { success: false, message: 'Password reset code has expired. Please request a new code.' };
-    }
-
-    session.attempts += 1;
-    if (session.otp !== otp.trim()) {
-      return { success: false, message: 'Invalid password reset code. Please check your email and try again.' };
-    }
-
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, message: 'Password must be at least 6 characters long.' };
-    }
-
-    let user = this.users.find(u => u.email.toLowerCase() === cleanEmail);
-    if (!user) {
-      return { success: false, message: 'User account not found.' };
-    }
-
-    const passwordHash = await hashPasswordClient(newPassword);
-    user.passwordHash = passwordHash;
-    this.passwordResetSessions.delete(cleanEmail);
-    this.saveUsers();
-
-    try {
-      await setDoc(doc(db, 'users', user.id), { passwordHash }, { merge: true });
-    } catch (err) {
-      console.error('Error saving updated password to Firestore:', err);
-    }
-
-    return {
-      success: true,
-      message: 'Your password has been successfully reset. You can now sign in with your new password.',
-    };
-  }
-
-  public async register(data: {
-    email: string;
-    password?: string;
-    fullName: string;
-    role: string;
-    barangayId: string;
-    officialPassword?: string;
-    phone?: string;
-    avatarUrl?: string;
-    householdHeadName?: string;
-    householdMembersCount?: number;
-    householdAddress?: string;
-    householdSegregationType?: string;
-  }) {
-    if (!data.password || data.password.length < 6) {
-      return {
-        success: false,
-        message: 'Please enter a secure password (at least 6 characters).'
-      };
-    }
-
-    if (data.role === 'BARANGAY_OFFICIAL') {
-      if (!data.officialPassword || data.officialPassword.trim() !== '123456') {
-        return {
-          success: false,
-          message: 'Invalid or missing Barangay Official authorization password.'
-        };
-      }
-    }
-
-    const cleanEmail = data.email.trim().toLowerCase();
-    const existing = this.users.find(u => u.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      return { success: false, message: 'An account with this email address already exists. Please log in.' };
-    }
-
-    // Securely hash password on client
-    const passwordHash = await hashPasswordClient(data.password);
-
-    const brgy = this.barangays.find(b => b.id === data.barangayId) || this.barangays[0];
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      email: data.email.trim(),
-      fullName: data.fullName.trim(),
-      role: (data.role as any) || 'RESIDENT',
-      barangayId: brgy.id,
-      barangayName: brgy.name,
-      city: brgy.cityName,
-      province: brgy.provinceName,
-      region: brgy.regionName,
-      passwordHash,
-      phone: data.phone?.trim() || undefined,
-      avatarUrl: data.avatarUrl?.trim() || undefined,
-      householdHeadName: data.householdHeadName?.trim() || undefined,
-      householdMembersCount: data.householdMembersCount || 1,
-      householdAddress: data.householdAddress?.trim() || undefined,
-      householdSegregationType: data.householdSegregationType || 'Biodegradable, Non-Biodegradable & Recyclable (3-Way)',
-      householdRegistered: Boolean(data.householdHeadName),
-      ecoPoints: 100,
-      ecoScore: 75,
-      kgRecycled: 0,
-      challengesCompleted: 0,
-      cleanupActivitiesCount: 0,
-      followingUserIds: [],
-      followingPageIds: ['gov-denr', 'gov-pasig-cenro']
-    };
-    this.users.push(newUser);
-    this.saveUsers();
-
-    // Store in Firestore database
-    try {
-      await setDoc(doc(db, 'users', newUser.id), JSON.parse(JSON.stringify(newUser)), { merge: true });
-      console.log(`Stored user account ${newUser.id} directly in Firestore`);
-    } catch (err) {
-      console.error('Error saving user to Firestore in clientStore.register:', err);
-    }
-
-    const { passwordHash: _, ...safeUser } = newUser;
-    return { success: true, user: safeUser as User };
-  }
-
-  public async updateProfile(id: string, updates: Partial<User>) {
-    const index = this.users.findIndex(u => u.id === id);
-    if (index !== -1) {
-      this.users[index] = { ...this.users[index], ...updates };
-      this.saveUsers();
-
-      // Persist to Firestore
-      try {
-        await setDoc(doc(db, 'users', id), JSON.parse(JSON.stringify(this.users[index])), { merge: true });
-      } catch (err) {
-        console.error('Error updating user in Firestore:', err);
-      }
-
-      return { success: true, user: this.users[index] };
-    }
-    return { success: false, message: 'User profile not found' };
-  }
-
-  public async registerHousehold(id: string, householdData: {
-    householdHeadName: string;
-    householdMembersCount: number;
-    householdAddress: string;
-    householdSegregationType: string;
-  }) {
-    const index = this.users.findIndex(u => u.id === id);
-    if (index !== -1) {
-      this.users[index] = {
-        ...this.users[index],
-        ...householdData,
-        householdRegistered: true,
-        ecoPoints: (this.users[index].ecoPoints || 0) + 50
-      };
-      this.saveUsers();
-
-      // Persist to Firestore
-      try {
-        await setDoc(doc(db, 'users', id), JSON.parse(JSON.stringify(this.users[index])), { merge: true });
-      } catch (err) {
-        console.error('Error updating household registration in Firestore:', err);
-      }
-
-      return { success: true, user: this.users[index] };
-    }
-    return { success: false, user: null };
-  }
-
-
-  public getUserProfile(id: string) {
-    const u = this.users.find(user => user.id === id);
-    if (u) return u;
-    return null;
   }
 
   // Locations
@@ -683,26 +317,27 @@ class ClientStore {
     this.reports.unshift(newReport);
     this.saveReports();
 
-    // Reward reporter points
-    const user = this.users.find(u => u.id === data.reporterId);
-    if (user) {
-      user.ecoPoints = (user.ecoPoints || 0) + 15;
-      this.saveUsers();
-      this.addActivityLog({
-        userId: user.id,
-        type: 'Report',
-        title: `Reported ${data.category}`,
-        description: data.description,
-        pointsEarned: 15,
-      });
-    }
-
     return newReport;
   }
 
   public updateReportStatus(id: string, status: string, notes?: string): EnvironmentalReport {
     const rep = this.reports.find(r => r.id === id);
     if (rep) {
+      if (status === 'Resolved' && !rep.resolvedAt) {
+        rep.resolvedAt = new Date().toISOString();
+        const user = this.users.find(u => u.id === rep.reporterId);
+        if (user) {
+          user.ecoPoints = (user.ecoPoints || 0) + 30;
+          this.saveUsers();
+          this.addActivityLog({
+            userId: user.id,
+            type: 'Report',
+            title: `Verified ${rep.category} report`,
+            description: rep.description,
+            pointsEarned: 30,
+          });
+        }
+      }
       rep.status = status as any;
       if (notes) rep.officialNotes = notes;
       this.saveReports();
@@ -756,15 +391,12 @@ class ClientStore {
       }
       const user = this.users.find(u => u.id === userId);
       if (user) {
-        user.ecoPoints = (user.ecoPoints || 0) + (event.pointsAwarded || 20);
-        user.cleanupActivitiesCount = (user.cleanupActivitiesCount || 0) + 1;
-        this.saveUsers();
         this.addActivityLog({
           userId: user.id,
           type: 'Event',
-          title: `Joined ${event.title}`,
-          description: `Participating in ${event.category} on ${event.date}`,
-          pointsEarned: event.pointsAwarded || 20,
+          title: `Registered for ${event.title}`,
+          description: `Participation must be verified before rewards are issued.`,
+          pointsEarned: 0,
         });
       }
       return event;
@@ -797,19 +429,6 @@ class ClientStore {
       if (!chal.completedUserIds.includes(userId)) {
         chal.completedUserIds.push(userId);
         this.saveChallenges();
-      }
-      const user = this.users.find(u => u.id === userId);
-      if (user) {
-        user.ecoPoints = (user.ecoPoints || 0) + (chal.pointsAwarded || 30);
-        user.challengesCompleted = (user.challengesCompleted || 0) + 1;
-        this.saveUsers();
-        this.addActivityLog({
-          userId: user.id,
-          type: 'Challenge',
-          title: `Completed ${chal.title}`,
-          description: `Earned ${chal.pointsAwarded || 30} Eco Points!`,
-          pointsEarned: chal.pointsAwarded || 30,
-        });
       }
       return chal;
     }
@@ -988,17 +607,12 @@ class ClientStore {
   public logWaste(userId: string, kg: number, wasteType: string, photoUrl?: string, autoPostToFeed?: boolean) {
     const user = this.users.find(u => u.id === userId);
     if (user) {
-      user.kgRecycled = (user.kgRecycled || 0) + kg;
-      const points = Math.round(kg * 10);
-      user.ecoPoints = (user.ecoPoints || 0) + points;
-      this.saveUsers();
-
       this.addActivityLog({
         userId: user.id,
         type: 'Recycling',
-        title: `Logged ${kg} kg of ${wasteType}`,
-        description: `Contributed to ${user.barangayName || 'barangay'} recycling score`,
-        pointsEarned: points,
+        title: `Submitted ${kg} kg of ${wasteType} for verification`,
+        description: 'Points and recycling totals are updated after an official verifies the activity.',
+        pointsEarned: 0,
         kgRecycled: kg,
         photoUrl,
       });
@@ -1011,9 +625,8 @@ class ClientStore {
           authorRole: user.role,
           barangayId: user.barangayId,
           barangayName: user.barangayName,
-          content: `Just recycled ${kg} kg of ${wasteType}! ♻️ Green neighborhood milestone!`,
+          content: `Submitted ${kg} kg of ${wasteType} for recycling verification! ♻️`,
           photoUrl,
-          wasteKg: kg,
           wasteType
         });
       }

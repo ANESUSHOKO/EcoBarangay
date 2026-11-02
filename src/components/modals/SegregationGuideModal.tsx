@@ -4,7 +4,7 @@ import { Search, X, CheckCircle, AlertTriangle, HelpCircle, Award, Sparkles } fr
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onEarnPoints?: (points: number, activityName: string) => void;
+  onSubmitQuiz?: (answerIndex: number) => Promise<void>;
 }
 
 interface ItemRule {
@@ -92,11 +92,13 @@ const ITEMS_GUIDE: ItemRule[] = [
   },
 ];
 
-export const SegregationGuideModal: React.FC<Props> = ({ isOpen, onClose, onEarnPoints }) => {
+export const SegregationGuideModal: React.FC<Props> = ({ isOpen, onClose, onSubmitQuiz }) => {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'guide' | 'quiz'>('guide');
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [quizError, setQuizError] = useState('');
+  const [submittingQuiz, setSubmittingQuiz] = useState(false);
 
   if (!isOpen) return null;
 
@@ -107,11 +109,22 @@ export const SegregationGuideModal: React.FC<Props> = ({ isOpen, onClose, onEarn
       item.tagline.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleQuizSubmit = (ansIndex: number) => {
+  const handleQuizSubmit = async (ansIndex: number) => {
     setSelectedAnswer(ansIndex);
+    setQuizError('');
     if (ansIndex === 1) {
       setQuizScore(50);
-      if (onEarnPoints) onEarnPoints(50, 'RA 9003 Waste Segregation Quiz Passed');
+      setSubmittingQuiz(true);
+      setQuizError('');
+      try {
+        await onSubmitQuiz?.(ansIndex);
+      } catch (error) {
+        setQuizError(error instanceof Error ? error.message : 'Could not submit the quiz for review.');
+        setQuizScore(null);
+        setSelectedAnswer(null);
+      } finally {
+        setSubmittingQuiz(false);
+      }
     } else {
       setQuizScore(0);
     }
@@ -159,7 +172,7 @@ export const SegregationGuideModal: React.FC<Props> = ({ isOpen, onClose, onEarn
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <Award className="w-4 h-4 text-amber-500" /> Take Eco-Quiz (+50 Points)
+            <Award className="w-4 h-4 text-amber-500" /> Eco-Quiz (up to 50 points after review)
           </button>
         </div>
 
@@ -211,7 +224,7 @@ export const SegregationGuideModal: React.FC<Props> = ({ isOpen, onClose, onEarn
                 <div>
                   <h4 className="text-sm font-bold text-amber-900 dark:text-amber-200">Segregation Knowledge Challenge</h4>
                   <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                    Answer correctly to prove your environmental awareness and earn 50 Eco Points!
+                    A passing result can be submitted to a barangay official for review. Points are not awarded until approved.
                   </p>
                 </div>
               </div>
@@ -231,7 +244,7 @@ export const SegregationGuideModal: React.FC<Props> = ({ isOpen, onClose, onEarn
                     <button
                       key={i}
                       onClick={() => handleQuizSubmit(i)}
-                      disabled={quizScore !== null}
+                      disabled={quizScore !== null || submittingQuiz}
                       className={`w-full p-3 rounded-xl border text-xs font-semibold text-left transition-all ${
                         selectedAnswer === i
                           ? i === 1
@@ -249,10 +262,13 @@ export const SegregationGuideModal: React.FC<Props> = ({ isOpen, onClose, onEarn
                   <div className={`p-4 rounded-xl text-xs font-bold flex items-center gap-2 mt-4 ${quizScore > 0 ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-950/60 text-red-900 dark:text-red-300'}`}>
                     {quizScore > 0 ? <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> : <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />}
                     {quizScore > 0
-                      ? 'Correct! Clean recyclables belong in the Recyclable (Muling Magagamit) bin. +50 Eco Points earned!'
-                      : 'Incorrect. Clean cardboard and PET plastic bottles are Recyclables (Muling Magagamit). Try reviewing the guide!'}
+                        ? submittingQuiz
+                          ? 'Correct answer. Submitting for official review…'
+                          : 'Correct! Submitted for official review. Eco Points are credited only if an authorized official approves the activity.'
+                        : 'Incorrect. Clean cardboard and PET plastic bottles are Recyclables (Muling Magagamit). Try reviewing the guide!'}
                   </div>
                 )}
+                {quizError && <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">{quizError}</p>}
               </div>
             </div>
           )}

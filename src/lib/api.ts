@@ -1,12 +1,13 @@
 import {
   User,
+  UserActivityLog,
   Barangay,
   Facility,
   EnvironmentalReport,
+  ReportStatus,
   Event,
   Challenge,
   GarbageSchedule,
-  UserActivityLog,
   Announcement,
   Region,
   Province,
@@ -33,6 +34,7 @@ import {
   AIChatMessage
 } from '../types';
 import { clientStore } from './clientStore';
+import { auth } from './firebase';
 
 let backendServerChecked = false;
 let isServerAvailable = false;
@@ -80,21 +82,17 @@ async function safeCall<T>(remoteCall: () => Promise<T>, fallbackCall: () => T |
     return Promise.resolve(fallbackCall());
   }
 
-  try {
-    return await remoteCall();
-  } catch (err) {
-    // A single route error or transient issue must never permanently mark the server offline
-    console.warn('Remote API call fell back to client store:', err);
-    return Promise.resolve(fallbackCall());
-  }
+  return remoteCall();
 }
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+  const token = await auth.currentUser?.getIdToken();
+  const headers = new Headers(options?.headers);
+  headers.set('Content-Type', 'application/json');
+  if (token) headers.set('Authorization', `Bearer ${token}`);
   const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
     ...options,
+    headers,
   });
 
   if (!res.ok) {
@@ -121,70 +119,19 @@ export const api = {
     ),
 
   // Auth
-  login: (email: string, password: string) =>
-    safeCall(
-      () =>
-        fetchJSON<{
-          success: boolean;
-          requireOtp?: boolean;
-          email?: string;
-          simulatedOtpCode?: string;
-          user?: User;
-          message?: string;
-        }>('/api/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ email, password }),
-        }),
-      () => clientStore.login(email, password)
-    ),
+  checkLegacyCredentials: (email: string, password: string) =>
+    fetchJSON<{ success: boolean; message?: string }>('/api/auth/legacy-migration-check', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
 
-  verifyOtp: (email: string, otp: string) =>
-    safeCall(
-      () =>
-        fetchJSON<{ success: boolean; user?: User; message?: string }>('/api/auth/verify-otp', {
-          method: 'POST',
-          body: JSON.stringify({ email, otp }),
-        }),
-      () => clientStore.verifyOtp(email, otp)
-    ),
-
-  resendOtp: (email: string) =>
-    safeCall(
-      () =>
-        fetchJSON<{ success: boolean; email?: string; simulatedOtpCode?: string; message?: string }>('/api/auth/resend-otp', {
-          method: 'POST',
-          body: JSON.stringify({ email }),
-        }),
-      () => clientStore.resendOtp(email)
-    ),
-
-  requestPasswordReset: (email: string) =>
-    safeCall(
-      () =>
-        fetchJSON<{ success: boolean; email?: string; simulatedOtpCode?: string; message?: string }>('/api/auth/forgot-password/request', {
-          method: 'POST',
-          body: JSON.stringify({ email }),
-        }),
-      () => clientStore.requestPasswordReset(email)
-    ),
-
-  resetPassword: (email: string, otp: string, newPassword: string) =>
-    safeCall(
-      () =>
-        fetchJSON<{ success: boolean; message?: string }>('/api/auth/forgot-password/reset', {
-          method: 'POST',
-          body: JSON.stringify({ email, otp, newPassword }),
-        }),
-      () => clientStore.resetPassword(email, otp, newPassword)
-    ),
+  getCurrentUser: () => fetchJSON<User>('/api/auth/me'),
 
   register: (data: {
     email: string;
-    password?: string;
     fullName: string;
     role: string;
     barangayId: string;
-    officialPassword?: string;
     phone?: string;
     avatarUrl?: string;
     householdHeadName?: string;
@@ -192,24 +139,16 @@ export const api = {
     householdAddress?: string;
     householdSegregationType?: string;
   }) =>
-    safeCall(
-      () =>
-        fetchJSON<{ success: boolean; user?: User; message?: string }>('/api/auth/register', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        }),
-      () => clientStore.register(data)
-    ),
+    fetchJSON<{ success: boolean; user?: User; message?: string }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   updateProfile: (id: string, updates: Partial<User>) =>
-    safeCall(
-      () =>
-        fetchJSON<{ success: boolean; user?: User; message?: string }>(`/api/auth/user/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(updates),
-        }),
-      () => clientStore.updateProfile(id, updates)
-    ),
+    fetchJSON<{ success: boolean; user?: User; message?: string }>(`/api/auth/user/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }),
 
   registerHousehold: (
     id: string,
@@ -220,20 +159,12 @@ export const api = {
       householdSegregationType: string;
     }
   ) =>
-    safeCall(
-      () =>
-        fetchJSON<{ success: boolean; user: User }>(`/api/auth/user/${id}/household`, {
-          method: 'POST',
-          body: JSON.stringify(householdData),
-        }),
-      () => clientStore.registerHousehold(id, householdData)
-    ),
+    fetchJSON<{ success: boolean; user: User }>(`/api/auth/user/${id}/household`, {
+      method: 'POST',
+      body: JSON.stringify(householdData),
+    }),
 
-  getUserProfile: (id: string) =>
-    safeCall(
-      () => fetchJSON<User>(`/api/auth/user/${id}`),
-      () => clientStore.getUserProfile(id)
-    ),
+  getUserProfile: (id: string) => fetchJSON<User>(`/api/auth/user/${id}`),
 
   // Locations
   getRegions: () =>
@@ -343,15 +274,37 @@ export const api = {
       () => clientStore.createReport(data)
     ),
 
-  updateReportStatus: (id: string, status: string, notes?: string) =>
+  updateReportStatus: (id: string, status: ReportStatus, notes?: string, evidenceUrl?: string, assignedTeam?: string) =>
     safeCall(
       () =>
         fetchJSON<EnvironmentalReport>(`/api/reports/${id}/status`, {
           method: 'PATCH',
-          body: JSON.stringify({ status, notes }),
+          body: JSON.stringify({ status, notes, evidenceUrl, assignedTeam }),
         }),
       () => clientStore.updateReportStatus(id, status, notes)
     ),
+
+  submitReportFeedback: (id: string, data: { rating: number; comment?: string; reopenReason?: string }) =>
+    fetchJSON<EnvironmentalReport>(`/api/reports/${id}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  reviewReportPhoto: (
+    id: string,
+    decision: 'Confirmed' | 'Rejected' | 'Corrected',
+    correctedCategory?: EnvironmentalReport['category'],
+  ) =>
+    fetchJSON<EnvironmentalReport>(`/api/reports/${id}/photo-review`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, correctedCategory }),
+    }),
+
+  decideReportReopen: (id: string, decision: 'Approved' | 'Rejected', notes: string) =>
+    fetchJSON<EnvironmentalReport>(`/api/reports/${id}/reopen-decision`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, notes }),
+    }),
 
   upvoteReport: (id: string, userId?: string) =>
     safeCall(
@@ -433,6 +386,12 @@ export const api = {
         }),
       () => clientStore.createSchedule(data)
     ),
+
+  updateSchedule: (id: string, updates: Partial<Omit<GarbageSchedule, 'id' | 'barangayId' | 'barangayName'>>) =>
+    fetchJSON<GarbageSchedule>(`/api/schedules/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    }),
 
   // Global Search
   globalSearch: (q: string) =>
@@ -566,6 +525,26 @@ export const api = {
       () => fetchJSON<UserActivityLog[]>(`/api/activity-logs${userId ? `?userId=${userId}` : ''}`),
       () => clientStore.getActivityLogs(userId)
     ),
+
+  getPendingEcoActivities: (barangayId: string) =>
+    fetchJSON<UserActivityLog[]>(`/api/activity-logs/pending?barangayId=${encodeURIComponent(barangayId)}`),
+
+  reviewEcoActivity: (
+    activityId: string,
+    status: 'Verified' | 'Rejected',
+    pointsAwarded: number,
+    notes: string,
+  ) =>
+    fetchJSON<UserActivityLog>(`/api/activity-logs/${activityId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ status, pointsAwarded, notes }),
+    }),
+
+  submitSegregationQuiz: (answerIndex: number) =>
+    fetchJSON<UserActivityLog>('/api/education/segregation-quiz', {
+      method: 'POST',
+      body: JSON.stringify({ answerIndex }),
+    }),
 
   // Announcements
   getAnnouncements: (barangayId?: string) =>
@@ -872,7 +851,12 @@ export const api = {
   // 13. Bulk Waste Pickup
   getBulkPickups: (userId?: string, barangayId?: string) =>
     safeCall(
-      () => fetchJSON<BulkWastePickupRequest[]>(`/api/bulk-pickups?userId=${userId || ''}&barangayId=${barangayId || ''}`),
+      () => {
+        const params = new URLSearchParams();
+        if (userId) params.set('userId', userId);
+        if (barangayId) params.set('barangayId', barangayId);
+        return fetchJSON<BulkWastePickupRequest[]>(`/api/bulk-pickups?${params}`);
+      },
       () => clientStore.getBulkPickups(userId, barangayId)
     ),
 
@@ -886,12 +870,19 @@ export const api = {
       () => clientStore.createBulkPickup(data)
     ),
 
-  updateBulkPickupStatus: (requestId: string, status: BulkWasteStatus, scheduledDate?: string) =>
+  updateBulkPickupStatus: (
+    requestId: string,
+    status: BulkWasteStatus,
+    scheduledDate?: string,
+    notes?: string,
+    collectionTeam?: string,
+    vehicleNumber?: string,
+  ) =>
     safeCall(
       () =>
         fetchJSON<BulkWastePickupRequest>(`/api/bulk-pickups/${requestId}/status`, {
           method: 'POST',
-          body: JSON.stringify({ status, scheduledDate }),
+          body: JSON.stringify({ status, scheduledDate, notes, collectionTeam, vehicleNumber }),
         }),
       () => clientStore.updateBulkPickupStatus(requestId, status, scheduledDate)
     ),
@@ -980,11 +971,10 @@ export const api = {
         }),
       () => ({
         isValid: true,
-        reason: 'Photo verified successfully.',
-        detectedCategory: 'UNCOLLECTED_GARBAGE' as const,
-        detectedSeverity: 'MEDIUM' as const,
-        confidence: 0.9,
-        labels: ['waste', 'environmental concern'],
+        reason: 'AI review is unavailable. An authorized official must review the photo.',
+        reviewRequired: true,
+        confidence: 0,
+        labels: [],
       })
     ),
 

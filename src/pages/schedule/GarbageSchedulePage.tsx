@@ -7,7 +7,8 @@ import {
   User,
   Event as CommunityEvent,
   PersonalCalendarEvent,
-  BulkWastePickupRequest
+  BulkWastePickupRequest,
+  BulkWasteType,
 } from '../../types';
 import { getTranslation } from '../../lib/i18n';
 import {
@@ -19,7 +20,6 @@ import {
   Plus,
   Download,
   Printer,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
   Trash2,
@@ -33,10 +33,12 @@ import {
   Square,
   Info,
   CalendarRange,
-  Users
+  Users,
+  X,
 } from 'lucide-react';
 import { AddEcoReminderModal } from './AddEcoReminderModal';
 import { exportToICS, ExportCalendarItem } from './icsExporter';
+import { compressImage } from '../../lib/compressImage';
 
 interface GarbageSchedulePageProps {
   currentBarangay: Barangay;
@@ -56,8 +58,9 @@ interface DayEventItem {
   categoryLabel: string;
   instructions?: string;
   truckNo?: string;
+  collectionTeam?: string;
+  zonesCovered?: string[];
   location?: string;
-  pointsReward?: number;
   isCustom?: boolean;
   completed?: boolean;
   rawEvent?: CommunityEvent;
@@ -102,6 +105,14 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [bulkPickupModalOpen, setBulkPickupModalOpen] = useState(false);
+  const [bulkPickupError, setBulkPickupError] = useState('');
+  const [bulkPickupWasteType, setBulkPickupWasteType] = useState<BulkWasteType>('Large Recyclables');
+  const [bulkPickupQuantity, setBulkPickupQuantity] = useState('');
+  const [bulkPickupAddress, setBulkPickupAddress] = useState('');
+  const [bulkPickupDate, setBulkPickupDate] = useState(formatTodayStr);
+  const [bulkPickupNotes, setBulkPickupNotes] = useState('');
+  const [bulkPickupPhoto, setBulkPickupPhoto] = useState('');
   const [modalDate, setModalDate] = useState<string>(formatTodayStr);
   const [completedReminderIds, setCompletedReminderIds] = useState<string[]>(() => {
     try {
@@ -175,6 +186,48 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
     }
   };
 
+  const handleBulkPickupPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setBulkPickupError('Choose a JPEG, PNG, or WebP photo under 5 MB.');
+      event.target.value = '';
+      return;
+    }
+    try {
+      const compressed = await compressImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setBulkPickupPhoto(reader.result as string);
+      reader.onerror = () => setBulkPickupError('Could not read the selected photo.');
+      reader.readAsDataURL(compressed);
+    } catch (error) {
+      setBulkPickupError(error instanceof Error ? error.message : 'Could not prepare the evidence photo.');
+      event.target.value = '';
+    }
+  };
+
+  const handleSubmitBulkPickup = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBulkPickupError('');
+    try {
+      const created = await api.createBulkPickup({
+        wasteType: bulkPickupWasteType,
+        quantityDescription: bulkPickupQuantity.trim(),
+        locationAddress: bulkPickupAddress.trim(),
+        preferredPickupDate: bulkPickupDate,
+        notes: bulkPickupNotes.trim() || undefined,
+        photoUrl: bulkPickupPhoto || undefined,
+      });
+      setBulkPickups(current => [created, ...current]);
+      setBulkPickupModalOpen(false);
+      setBulkPickupQuantity('');
+      setBulkPickupAddress('');
+      setBulkPickupNotes('');
+      setBulkPickupPhoto('');
+    } catch (error) {
+      setBulkPickupError(error instanceof Error ? error.message : 'Could not submit the pickup request.');
+    }
+  };
   // Build Calendar Days for Current Month (CSS Grid calculation)
   const calendarGridDays = useMemo(() => {
     const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sunday
@@ -252,7 +305,9 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
           type,
           categoryLabel: sch.wasteType,
           instructions: sch.instructions,
-          truckNo: sch.truckNo,
+          truckNo: sch.vehicleNumber || sch.truckNo,
+          collectionTeam: sch.collectionTeam,
+          zonesCovered: sch.zonesCovered,
         });
       }
     });
@@ -267,7 +322,6 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
           type: 'event',
           categoryLabel: `Community ${evt.category}`,
           location: evt.location,
-          pointsReward: evt.pointsAwarded,
           instructions: evt.description,
           rawEvent: evt,
         });
@@ -463,8 +517,14 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
               </div>
               <div className="text-xs text-slate-300 flex items-center gap-2">
                 <Truck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>{nextCollection.schedule.timeSlot} • {nextCollection.schedule.truckNo || 'Standard Route'}</span>
+                <span>{nextCollection.schedule.timeSlot} • {nextCollection.schedule.vehicleNumber || nextCollection.schedule.truckNo || 'Standard Route'}</span>
               </div>
+              {nextCollection.schedule.collectionTeam && (
+                <div className="text-[11px] text-emerald-200/90">Assigned team: {nextCollection.schedule.collectionTeam}</div>
+              )}
+              {nextCollection.schedule.zonesCovered?.length ? (
+                <div className="text-[11px] text-emerald-200/90">Zones: {nextCollection.schedule.zonesCovered.join(', ')}</div>
+              ) : null}
               <div className="text-[11px] text-emerald-200/90 bg-emerald-950/50 p-2 rounded-xl border border-emerald-500/20">
                 💡 {nextCollection.schedule.instructions}
               </div>
@@ -537,6 +597,19 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
           >
             <Plus className="w-4 h-4" />
             <span>Add Eco Reminder</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setBulkPickupError('');
+              setBulkPickupModalOpen(true);
+            }}
+            disabled={!currentUser}
+            title={currentUser ? 'Request a bulky-waste pickup' : 'Sign in to request a pickup'}
+            className="flex items-center space-x-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Truck className="w-4 h-4" />
+            <span>Request bulk pickup</span>
           </button>
 
           <button
@@ -868,17 +941,17 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
                           <span>Vehicle: {item.truckNo}</span>
                         </div>
                       )}
+                      {item.collectionTeam && (
+                        <div className="text-[11px] text-slate-500">Team: {item.collectionTeam}</div>
+                      )}
+                      {item.zonesCovered && item.zonesCovered.length > 0 && (
+                        <div className="text-[11px] text-slate-500">Zones: {item.zonesCovered.join(', ')}</div>
+                      )}
 
                       {item.location && (
                         <div className="flex items-center gap-1.5 text-slate-500 font-medium text-[11px]">
                           <MapPin className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                           <span>Location: {item.location}</span>
-                        </div>
-                      )}
-
-                      {item.pointsReward && (
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-extrabold text-[11px]">
-                          <Sparkles className="w-3 h-3 text-emerald-600" /> +{item.pointsReward} EcoPoints Reward
                         </div>
                       )}
 
@@ -1118,11 +1191,13 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
                   <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
                     <Clock className="w-4 h-4 text-emerald-600" /> Collection Time: {sch.timeSlot}
                   </div>
-                  {sch.truckNo && (
+                  {(sch.vehicleNumber || sch.truckNo) && (
                     <div className="flex items-center gap-1.5 text-slate-500 font-medium">
-                      <Truck className="w-4 h-4 text-slate-400" /> Dispatched Vehicle: {sch.truckNo}
+                      <Truck className="w-4 h-4 text-slate-400" /> Dispatched Vehicle: {sch.vehicleNumber || sch.truckNo}
                     </div>
                   )}
+                  {sch.collectionTeam && <p className="text-slate-500">Assigned team: {sch.collectionTeam}</p>}
+                  {sch.zonesCovered?.length ? <p className="text-slate-500">Zones: {sch.zonesCovered.join(', ')}</p> : null}
                   <p className="text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100 mt-2 leading-relaxed">
                     💡 {sch.instructions}
                   </p>
@@ -1201,6 +1276,55 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Bulk Pickup Request Modal */}
+      {bulkPickupModalOpen && currentUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="bulk-pickup-title">
+          <form onSubmit={handleSubmitBulkPickup} className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="bulk-pickup-title" className="text-lg font-bold text-slate-900 dark:text-white">Request a bulk-waste pickup</h2>
+                <p className="text-xs text-slate-500">The barangay team will schedule and update this request using its tracking number.</p>
+              </div>
+              <button type="button" onClick={() => setBulkPickupModalOpen(false)} aria-label="Close bulk pickup form" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Waste type
+              <select value={bulkPickupWasteType} onChange={event => setBulkPickupWasteType(event.target.value as BulkWasteType)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs dark:border-slate-600 dark:bg-slate-800">
+                {['Large Recyclables', 'Old Appliances', 'Furniture', 'E-Waste', 'Bulk Cardboard', 'Other'].map(type => <option key={type}>{type}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Quantity and item description
+              <input required minLength={2} maxLength={200} value={bulkPickupQuantity} onChange={event => setBulkPickupQuantity(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs dark:border-slate-600 dark:bg-slate-800" />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Pickup address
+              <input required minLength={3} maxLength={200} value={bulkPickupAddress} onChange={event => setBulkPickupAddress(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs dark:border-slate-600 dark:bg-slate-800" />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Preferred pickup date
+              <input required type="date" min={formatTodayStr} value={bulkPickupDate} onChange={event => setBulkPickupDate(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs dark:border-slate-600 dark:bg-slate-800" />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Notes (optional)
+              <textarea maxLength={500} rows={2} value={bulkPickupNotes} onChange={event => setBulkPickupNotes(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs dark:border-slate-600 dark:bg-slate-800" />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Photo evidence (optional; compressed before saving)
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBulkPickupPhoto} className="mt-1 w-full text-xs" />
+            </label>
+            {bulkPickupPhoto && <img src={bulkPickupPhoto} alt="Bulk pickup evidence preview" className="max-h-40 rounded-xl object-cover" />}
+            {bulkPickupError && <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">{bulkPickupError}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setBulkPickupModalOpen(false)} className="rounded-lg bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">Cancel</button>
+              <button type="submit" className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white">Submit request</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Add Reminder Modal */}
       <AddEcoReminderModal

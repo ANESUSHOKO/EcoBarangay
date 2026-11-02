@@ -2,6 +2,7 @@ export type UserRole = 'RESIDENT' | 'BARANGAY_OFFICIAL' | 'SYSTEM_ADMIN';
 
 export interface User {
   id: string;
+  firebaseUid?: string;
   email: string;
   fullName: string;
   role: UserRole;
@@ -122,10 +123,36 @@ export type ReportCategory =
   | 'Unsegregated Waste';
 
 export type ReportUrgency = 'Low' | 'Medium' | 'High' | 'Critical';
-export type ReportStatus = 'Pending' | 'In Progress' | 'Resolved' | 'Rejected';
+export type ReportStatus =
+  | 'Pending'
+  | 'Under Review'
+  | 'Assigned'
+  | 'In Progress'
+  | 'Resolved'
+  | 'Rejected';
+
+export interface ReportStatusUpdate {
+  status: ReportStatus;
+  changedAt: string;
+  changedBy: string;
+  notes?: string;
+  evidenceUrl?: string;
+  assignedTeam?: string;
+  action?: string;
+}
+
+export interface OfficialPhotoReview {
+  decision: 'Confirmed' | 'Rejected' | 'Corrected';
+  correctedCategory?: ReportCategory;
+  notes?: string;
+  reviewedBy: string;
+  reviewedAt: string;
+}
 
 export interface EnvironmentalReport {
   id: string;
+  trackingNumber?: string;
+  possibleDuplicateIds?: string[];
   category: ReportCategory;
   description: string;
   locationAddress: string;
@@ -142,9 +169,12 @@ export interface EnvironmentalReport {
   reporterName: string;
   reporterContact?: string;
   photoUrl?: string;
+  photoAssessment?: PhotoValidationResult & { officialReview?: OfficialPhotoReview };
   beforePhotoUrl?: string;
   afterPhotoUrl?: string;
   status: ReportStatus;
+  statusHistory?: ReportStatusUpdate[];
+  assignedTeam?: string;
   createdAt: string;
   resolvedAt?: string;
   resolutionDescription?: string;
@@ -153,6 +183,11 @@ export interface EnvironmentalReport {
   officialNotes?: string;
   upvotesCount?: number;
   upvotedUserIds?: string[];
+  resolutionFeedback?: {
+    rating: number;
+    comment?: string;
+    submittedAt: string;
+  };
   reopenRequest?: {
     residentAnswer: 'YES' | 'NO';
     reason?: string;
@@ -201,6 +236,17 @@ export interface GarbageSchedule {
   wasteType: 'Biodegradable' | 'Non-Biodegradable' | 'Recyclable' | 'Bulk/E-Waste';
   instructions: string;
   truckNo?: string;
+  zoneId?: string;
+  zonesCovered?: string[];
+  collectionTeam?: string;
+  vehicleNumber?: string;
+  active?: boolean;
+  history?: {
+    changedAt: string;
+    changedBy: string;
+    changedFields: string[];
+    previousValues: Partial<Pick<GarbageSchedule, 'dayOfWeek' | 'timeSlot' | 'wasteType' | 'instructions' | 'truckNo' | 'zoneId' | 'zonesCovered' | 'collectionTeam' | 'vehicleNumber' | 'active'>>;
+  }[];
 }
 
 export interface UserActivityLog {
@@ -213,6 +259,12 @@ export interface UserActivityLog {
   kgRecycled?: number;
   photoUrl?: string;
   createdAt: string;
+  verificationStatus?: 'Pending' | 'Verified' | 'Rejected';
+  verifiedBy?: string;
+  verifiedAt?: string;
+  verificationNotes?: string;
+  sourceId?: string;
+  residentName?: string;
 }
 
 export interface Announcement {
@@ -298,6 +350,7 @@ export interface AppNotification {
   read: boolean;
   barangayId?: string;
   barangayName?: string;
+  recipientUserId?: string;
   targetTab?: string;
   linkId?: string;
 }
@@ -460,10 +513,11 @@ export type BulkWasteType =
   | 'Bulk Cardboard'
   | 'Other';
 
-export type BulkWasteStatus = 'Submitted' | 'Scheduled' | 'Collected' | 'Completed' | 'Cancelled';
+export type BulkWasteStatus = 'Submitted' | 'Scheduled' | 'Missed' | 'Collected' | 'Completed' | 'Cancelled';
 
 export interface BulkWastePickupRequest {
   id: string;
+  trackingNumber?: string;
   userId: string;
   userName: string;
   userPhone: string;
@@ -477,6 +531,16 @@ export interface BulkWastePickupRequest {
   notes?: string;
   status: BulkWasteStatus;
   scheduledDate?: string;
+  collectionTeam?: string;
+  vehicleNumber?: string;
+  statusHistory?: {
+    status: BulkWasteStatus;
+    changedAt: string;
+    changedBy: string;
+    notes?: string;
+    collectionTeam?: string;
+    vehicleNumber?: string;
+  }[];
   createdAt: string;
 }
 
@@ -588,6 +652,7 @@ export interface PersonalCalendarEvent {
 export interface PhotoValidationResult {
   isValid: boolean;
   reason: string;
+  reviewRequired?: boolean;
   detectedCategory?: 'UNCOLLECTED_GARBAGE' | 'ILLEGAL_DUMPING' | 'CLOGGED_DRAINAGE' | 'OPEN_BURNING' | 'HAZARDOUS_WASTE' | 'RECYCLING' | 'OTHER';
   detectedSeverity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   confidence: number;
@@ -602,4 +667,3 @@ export interface AIChatMessage {
   content: string;
   timestamp?: string;
 }
-

@@ -16,22 +16,16 @@ import {
   ShieldCheck,
   Building2,
   ArrowRight,
-  Leaf,
-  Code2,
-  GraduationCap,
-  Mail,
-  Terminal,
-  Cpu
+  Leaf
 } from 'lucide-react';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
   onSelectBarangay: (b: Barangay) => void;
   lang?: Language;
-  onOpenDeveloperInfo?: () => void;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay, lang = 'en', onOpenDeveloperInfo }) => {
+export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay, lang = 'en' }) => {
   const t = (key: any) => getTranslation(lang as Language, key);
   const [stats, setStats] = useState<{
     registeredResidents: number;
@@ -355,8 +349,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
                 </div>
                 <p className="text-xs text-slate-300">
                   {lang === 'tl'
-                    ? 'Sa bawat pag-resiklo o pagsali sa cleanup drive, nakakakuha ka ng Eco Points at pinalalakas ang ranggo ng iyong barangay!'
-                    : 'Every time you drop off recyclables or join a cleanup drive, your household earns Eco Points and boosts your barangay national rank!'}
+                    ? 'Ibinibigay lamang ang Eco Points matapos ma-verify ng awtorisadong opisyal ang aktibidad; walang puntos ang simpleng pag-RSVP sa event.'
+                    : 'Eco Points are credited only after an authorized official verifies an activity; joining or RSVPing to an event alone does not award points.'}
                 </p>
                 <button
                   onClick={() => onNavigate('events')}
@@ -370,55 +364,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
         </div>
       </section>
 
-      {/* Developer & Platform Engineering Spotlight */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 p-0.5 shrink-0 shadow-lg shadow-emerald-600/20">
-                <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-white font-black text-lg">
-                  <span className="bg-gradient-to-br from-emerald-300 via-teal-200 to-white bg-clip-text text-transparent">
-                    ALS
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-1 text-left">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
-                  <Code2 className="w-3 h-3" />
-                  <span>Platform Lead & Software Architect</span>
-                </div>
-                <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                  Anesu Lancelot Shoko
-                </h4>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <GraduationCap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Centro Escolar University
-                  </span>
-                  <span>•</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400">
-                    shoko2314731@ceu.edu.ph
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              {onOpenDeveloperInfo && (
-                <button
-                  type="button"
-                  onClick={onOpenDeveloperInfo}
-                  className="w-full md:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all active:scale-95"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>View Engineering Profile</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };
-

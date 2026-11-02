@@ -23,7 +23,6 @@ import {
   Sparkles,
   Sun,
   Moon,
-  Code2,
   LayoutDashboard,
   Settings,
   PlusCircle,
@@ -41,7 +40,6 @@ interface MobileBottomNavProps {
   onOpenLocationModal: () => void;
   onOpenGuideModal: () => void;
   onOpenProfileSettings?: () => void;
-  onOpenDeveloperInfo?: () => void;
   onLogout?: () => void;
   lang: Language;
   onToggleLang: () => void;
@@ -57,7 +55,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenLocationModal,
   onOpenGuideModal,
   onOpenProfileSettings,
-  onOpenDeveloperInfo,
   onLogout,
   lang,
   onToggleLang,
@@ -316,7 +313,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                       Report Dumping
                     </span>
                     <span className="text-[10px] text-amber-700 dark:text-amber-400 block truncate">
-                      +30 Eco Points
+                      Points after verification
                     </span>
                   </div>
                 </button>
@@ -509,7 +506,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                       Join the Clean Barangay League
                     </h5>
                     <p className="text-[10px] text-slate-600 dark:text-slate-400 max-w-xs mx-auto mt-0.5">
-                      Log household recycling, earn verified Eco Points, and boost your barangay's national rank.
+                      Submit recycling evidence for official review; only verified activity may receive Eco Points.
                     </p>
                   </div>
                   <button
@@ -562,24 +559,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 </button>
               </div>
 
-              {/* Developer Info Trigger */}
-              {onOpenDeveloperInfo && (
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onOpenDeveloperInfo();
-                  }}
-                  className="mt-2.5 w-full p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 hover:text-emerald-800 dark:hover:text-emerald-300 rounded-xl border border-slate-200/80 dark:border-slate-700 flex items-center justify-between text-xs font-extrabold transition-all"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Code2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span className="truncate">Developer: Anesu Lancelot Shoko</span>
-                  </div>
-                  <span className="text-[10px] font-black px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 rounded-md shrink-0">
-                    Info
-                  </span>
-                </button>
-              )}
             </div>
 
             {/* Footer Tag */}

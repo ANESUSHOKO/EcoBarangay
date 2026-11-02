@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
+import { compressImage } from '../../lib/compressImage';
 import { User, Barangay, GarbageSchedule, UserActivityLog, Announcement, Language } from '../../types';
 import { getTranslation } from '../../lib/i18n';
 import {
@@ -17,7 +18,6 @@ import {
   ChevronRight,
   ShieldAlert,
   Loader2,
-  Camera,
   Upload,
   Share2,
   X,
@@ -99,6 +99,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   const [autoPostToFeed, setAutoPostToFeed] = useState(true);
   const [submittingWaste, setSubmittingWaste] = useState(false);
   const [logSuccessMessage, setLogSuccessMessage] = useState<string | null>(null);
+  const [wastePhotoError, setWastePhotoError] = useState('');
 
   useEffect(() => {
     let isSubscribed = true;
@@ -156,14 +157,31 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
     };
   }, [currentBarangay?.id, currentUser?.id]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+    setWastePhotoError('');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setWastePhotoError('Choose a JPEG, PNG, or WebP evidence photo.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setWastePhotoError('Photo must be smaller than 5 MB.');
+      e.target.value = '';
+      return;
+    }
+    try {
+      const compressed = await compressImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotoUrl(reader.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.onerror = () => setWastePhotoError('Could not read the selected photo.');
+      reader.readAsDataURL(compressed);
+    } catch (error) {
+      setWastePhotoError(error instanceof Error ? error.message : 'Could not prepare the evidence photo.');
+      e.target.value = '';
     }
   };
 
@@ -177,7 +195,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
       const res = await api.logWaste(currentUser.id, kgVal, wasteType, photoUrl || undefined, autoPostToFeed);
       if (res.success && res.user) {
         onUserUpdate(res.user);
-        setLogSuccessMessage(`Great job! +${Math.round(kgVal * 10)} Eco Points added to your profile.`);
+        setLogSuccessMessage('Activity submitted. Eco Points and recycling totals update after official verification.');
         setTimeout(() => {
           setLogSuccessMessage(null);
           setLogModalOpen(false);
@@ -292,18 +310,18 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
               {currentUser.householdRegistered ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
                   <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  Verified Active
+                  Registered
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200">
-                  Not Registered Yet (+50 pts)
+                  Not Registered Yet
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1">
               {currentUser.householdRegistered
                 ? `${currentUser.householdHeadName || currentUser.fullName} • ${currentUser.householdAddress || 'Address on record'} • ${currentUser.householdMembersCount || 4} members (${currentUser.householdSegregationType || '3-Bin System'})`
-                : 'Register your home address and family segregation bin setup under RA 9003 to claim +50 Eco Points.'}
+                : 'Register your home address and family segregation bin setup under RA 9003. Registration alone does not award Eco Points.'}
             </p>
           </div>
         </div>
@@ -451,7 +469,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
                   <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{new Date(log.createdAt).toLocaleString()}</div>
                 </div>
                 <div className="px-3 py-1 bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 font-extrabold text-xs rounded-full">
-                  +{log.pointsEarned} pts
+                  {log.pointsEarned > 0 ? `+${log.pointsEarned} pts` : 'Pending review'}
                 </div>
               </div>
             ))}
@@ -512,7 +530,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
                     onChange={e => setWasteKg(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">1 kg recycled = 10 Eco Points earned for your household!</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Weights and evidence are credited after official review. An official may award 0–50 points per verified activity with a recorded reason.</p>
                 </div>
 
                 {/* Snap / Upload Photo */}
@@ -533,21 +551,12 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
                     <div className="flex gap-2">
                       <label className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-50 border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-xl cursor-pointer transition-colors text-xs font-semibold text-slate-600 hover:text-emerald-700">
                         <Upload className="w-4 h-4 text-emerald-600" />
-                        <span>Upload Photo</span>
-                        <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                        <span>Upload photo (max 5 MB; compressed before saving)</span>
+                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileUpload} className="hidden" />
                       </label>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPhotoUrl('https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80&w=800')
-                        }
-                        className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold border border-emerald-200 flex items-center gap-1.5 shrink-0"
-                      >
-                        <Camera className="w-4 h-4 text-emerald-600" />
-                        <span>Sample</span>
-                      </button>
                     </div>
                   )}
+                  {wastePhotoError && <p role="alert" className="mt-1 text-[11px] text-rose-700">{wastePhotoError}</p>}
                 </div>
 
                 {/* Auto share to Feed Checkbox */}

@@ -9,6 +9,7 @@ import {
   PhotoValidationResult,
 } from '../../types';
 import { api } from '../../lib/api';
+import { compressImage } from '../../lib/compressImage';
 import {
   AlertTriangle,
   Camera,
@@ -69,30 +70,6 @@ const DESCRIPTION_TEMPLATES = [
   'Commercial establishment dumping unsegregated wet food waste and cartons on the sidewalk.',
   'Open burning (siga) of yard waste and plastics producing hazardous smoke in residential area.',
   'Overflowing public waste bin spilling trash onto the street and attracting pests.',
-];
-
-// Preset sample photos for fast reporting or when camera is unavailable
-const SAMPLE_PHOTOS = [
-  {
-    label: 'Illegal Dump Pile',
-    url: 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&q=80&w=800',
-  },
-  {
-    label: 'Clogged Drainage',
-    url: 'https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&q=80&w=800',
-  },
-  {
-    label: 'Overflowing Bin',
-    url: 'https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&q=80&w=800',
-  },
-  {
-    label: 'Open Burning',
-    url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&q=80&w=800',
-  },
-  {
-    label: 'Canal Plastic Litter',
-    url: 'https://images.unsplash.com/photo-1621451537084-482c73073a0f?auto=format&fit=crop&q=80&w=800',
-  },
 ];
 
 export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = ({
@@ -334,7 +311,7 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
   };
 
   // Handle Photo File Upload (TC_REPORT_04: Validate file type and reject GIFs)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -362,18 +339,23 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = event => {
-      const result = event.target?.result as string;
-      setPhotoPreview(result);
-      setPhotoUrl(result);
-      // Run AI inspection
-      runPhotoVerification(result);
-    };
-    reader.onerror = () => {
-      setErrorMsg('Failed to read image file. Please try again.');
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressedFile = await compressImage(file);
+      const reader = new FileReader();
+      reader.onload = event => {
+        const result = event.target?.result as string;
+        setPhotoPreview(result);
+        setPhotoUrl(result);
+        runPhotoVerification(result);
+      };
+      reader.onerror = () => {
+        setErrorMsg('Failed to read image file. Please try again.');
+      };
+      reader.readAsDataURL(compressedFile);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Failed to prepare the photo for upload.');
+      e.target.value = '';
+    }
   };
 
   // Form Submission (TC_REPORT_02: Validate required fields and only attach photo if explicitly uploaded)
@@ -388,14 +370,6 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
 
     if (!address.trim()) {
       setErrorMsg('Please enter the location address or street where the issue is located.');
-      return;
-    }
-
-    // AI Photo Inspection Enforcement: block submission if photo was rejected by AI
-    if ((photoUrl || photoPreview) && photoValidation && !photoValidation.isValid) {
-      setErrorMsg(
-        `Submission Blocked by AI Verification: ${photoValidation.reason}. Please remove this picture and provide a photo of the environmental or waste problem.`
-      );
       return;
     }
 
@@ -430,7 +404,9 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
         reporterId,
         reporterName,
         reporterContact,
+        isAnonymous,
         photoUrl: finalPhoto,
+        photoAssessment: photoValidation ? { ...photoValidation, reviewRequired: true } : undefined,
         upvotesCount: 1,
         upvotedUserIds: [reporterId],
       };
@@ -506,8 +482,8 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
               Report Successfully Logged & Submitted!
             </h4>
             <p className="text-xs text-emerald-700 dark:text-emerald-300">
-              Thank you for keeping Brgy. {currentBarangay.name} clean. +30 Eco Points
-              credited. Your report has been assigned to the barangay environmental task force.
+              Thank you for keeping Brgy. {currentBarangay.name} clean. Eco Points are credited only after an official verifies the report.
+              Your report has been assigned to the barangay environmental task force.
             </p>
           </div>
         </div>
@@ -899,19 +875,19 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                     </p>
                   </div>
                 </div>
-              ) : photoValidation?.isValid ? (
+              ) : photoValidation?.isValid && photoValidation.confidence > 0 ? (
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl space-y-1">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-black text-emerald-900 dark:text-emerald-200">
                       <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      <span>AI Verification Passed: Valid Environmental Evidence</span>
+                      <span>AI Suggestion: Possible Environmental Evidence</span>
                     </div>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 rounded">
                       {Math.round(photoValidation.confidence * 100)}% Match
                     </span>
                   </div>
                   <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
-                    {photoValidation.reason}
+                    {photoValidation.reason} An authorized official must review the original photo; this assessment does not verify the report.
                   </p>
                   {photoValidation.labels && photoValidation.labels.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
@@ -926,17 +902,17 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                     </div>
                   )}
                 </div>
-              ) : photoValidation?.isValid === false ? (
+              ) : photoValidation?.isValid === false && photoValidation.confidence > 0 ? (
                 <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-xl space-y-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-black text-rose-800 dark:text-rose-200">
                     <ShieldAlert className="w-4 h-4 text-rose-600" />
-                    <span>AI Rejection: Non-Environmental Photo Detected</span>
+                    <span>AI Suggestion: Photo May Not Show an Environmental Issue</span>
                   </div>
                   <p className="text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed font-medium">
                     {photoValidation.reason}
                   </p>
                   <p className="text-[10px] text-rose-600 dark:text-rose-400 italic">
-                    Note: To maintain high data integrity, only photos showing waste, illegal dumping, clogged canals, or public environmental hazards can be submitted.
+                    This is only an AI suggestion. You may still submit the report; an authorized official will review the photo and report details.
                   </p>
                   <button
                     type="button"
@@ -951,6 +927,10 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                     Remove photo and choose a valid picture
                   </button>
                 </div>
+              ) : photoValidation ? (
+                <p className="p-3 rounded-xl border border-amber-300 bg-amber-50 text-[11px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                  {photoValidation.reason} You can still submit; an authorized official must review the photo.
+                </p>
               ) : null}
             </div>
           ) : (
@@ -965,7 +945,7 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                     Click to snap or upload photo evidence
                   </span>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Supports JPG, PNG, WEBP (Max 5MB) • Inspected by AI
+                    JPG, PNG, WEBP (Max 5MB; compressed before saving). The photo is sent to the AI provider for a suggestion; avoid faces or personal details. Officials make the final decision.
                   </p>
                 </div>
                 <input
@@ -976,37 +956,6 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                 />
               </label>
 
-              {/* Preset Sample Photo Selector */}
-              <div>
-                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
-                  <span>Or select a realistic scene preset:</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {SAMPLE_PHOTOS.map((sample, idx) => (
-                    <button
-                      type="button"
-                      key={idx}
-                      onClick={() => {
-                        setPhotoUrl(sample.url);
-                        setPhotoPreview(sample.url);
-                        runPhotoVerification(sample.url);
-                      }}
-                      className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 text-left aspect-video hover:ring-2 hover:ring-emerald-500 transition-all"
-                    >
-                      <img
-                        src={sample.url}
-                        alt={sample.label}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-black/40 flex items-end p-1.5">
-                        <span className="text-[10px] font-bold text-white leading-tight">
-                          {sample.label}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -1047,7 +996,7 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                 </div>
               </div>
               <span className="text-[11px] font-black px-2 py-0.5 bg-emerald-600 text-white rounded-lg">
-                +30 Eco Points Reward
+                +30 Eco Points only after an authorized official resolves the report
               </span>
             </div>
           ) : (

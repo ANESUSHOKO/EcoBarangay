@@ -48,7 +48,7 @@ export const RegisterHouseholdModal: React.FC<RegisterHouseholdModalProps> = ({
 
       if (res.success && res.user) {
         onUserUpdate(res.user);
-        setSuccessMsg('🎉 Household registered successfully! +50 Eco Points awarded.');
+        setSuccessMsg('Household details saved. They do not automatically grant Eco Points.');
         setTimeout(() => {
           setSuccessMsg(null);
           onClose();
@@ -103,9 +103,7 @@ export const RegisterHouseholdModal: React.FC<RegisterHouseholdModalProps> = ({
           <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl text-xs text-emerald-900 flex items-start gap-2.5">
             <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold">RA 9003 Compliance Perk:</span> Registering your household certifies
-              your family's participation in barangay waste segregation and unlocks{' '}
-              <strong className="text-emerald-700">+50 Eco Points</strong>!
+              <span className="font-bold">Household registration:</span> Save your household and segregation details for barangay planning. Registration alone does not award Eco Points.
             </div>
           </div>
 

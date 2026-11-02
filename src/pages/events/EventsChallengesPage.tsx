@@ -100,7 +100,7 @@ export const EventsChallengesPage: React.FC<EventsChallengesPageProps> = ({
                       {evt.category}
                     </span>
                     <span className="text-xs font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-                      🎁 +{evt.pointsAwarded} Eco Pts
+                      🎁 Rewards pending verification workflow
                     </span>
                   </div>
 
@@ -149,7 +149,7 @@ export const EventsChallengesPage: React.FC<EventsChallengesPageProps> = ({
                       {chl.category} • {chl.durationDays} Days
                     </span>
                     <span className="text-xs font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-                      ⚡ +{chl.pointsAwarded} Eco Pts
+                      ⚡ Rewards pending verification workflow
                     </span>
                   </div>
 
@@ -159,12 +159,12 @@ export const EventsChallengesPage: React.FC<EventsChallengesPageProps> = ({
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-500">
-                    🏆 {chl.completedUserIds.length} Residents Completed
+                    🏆 {chl.completedUserIds.length} Resident Submissions
                   </span>
 
                   {isCompleted ? (
                     <span className="px-4 py-2 bg-emerald-100 text-emerald-800 font-extrabold text-xs rounded-xl flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Completed!
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Submitted
                     </span>
                   ) : (
                     <button

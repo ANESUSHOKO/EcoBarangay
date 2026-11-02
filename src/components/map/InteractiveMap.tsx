@@ -213,7 +213,7 @@ export const InteractiveMap: React.FC<MapProps> = ({
           <h4 style="margin: 6px 0 2px 0; font-size: 13px; font-weight: 700; color: #0f172a;">${evt.title}</h4>
           <p style="margin: 0 0 6px 0; font-size: 11px; color: #64748b;">📅 ${evt.date} | ⏰ ${evt.time}</p>
           <p style="margin: 0 0 6px 0; font-size: 11px; color: #334155;">📍 ${evt.location}</p>
-          <div style="font-size: 11px; font-weight: 700; color: #059669;">🎁 Earn +${evt.pointsAwarded} Eco Points</div>
+          <div style="font-size: 11px; color: #64748b;">Community event · RSVPs do not award points</div>
         </div>
       `;
 

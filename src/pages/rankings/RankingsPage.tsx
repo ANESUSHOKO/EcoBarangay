@@ -76,6 +76,8 @@ const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
 
             <button
               onClick={() => onToggleExpand(b.id)}
+              aria-expanded={isExpanded}
+              aria-label={`${isExpanded ? 'Hide' : 'Show'} score breakdown for Barangay ${b.name}`}
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer shrink-0"
               title="Toggle 100-pt Score Breakdown"
             >
@@ -203,7 +205,10 @@ export const RankingsPage: React.FC<RankingsPageProps> = ({ onSelectBarangay, on
             Cleanest Barangays National Ranking
           </h1>
           <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-            "Mas Malinis na Barangay, Mas Mataas na Ranking." Our algorithm uses normalized metrics (0-100 total points) so small rural barangays compete on a level playing field with high-density urban areas.
+            "Mas Malinis na Barangay, Mas Mataas na Ranking." Scores combine seven dimensions with a 100-point maximum. Rankings reflect currently recorded data; population normalization and independent verification are not yet applied, so compare results cautiously.
+          </p>
+          <p className="text-xs text-amber-200">
+            Data coverage varies. An unavailable or unverified indicator should not be interpreted as zero or as an official audited result.
           </p>
         </div>
       </div>

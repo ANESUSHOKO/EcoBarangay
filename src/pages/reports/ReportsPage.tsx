@@ -169,7 +169,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
             <strong className="text-slate-900 dark:text-white">
               Brgy. {currentBarangay.name}, {currentBarangay.cityName}
             </strong>
-            . Citizens receive +30 Eco Points for verified reports complying with Republic Act 9003.
+            . The reporter receives 30 Eco Points only after an authorized official resolves the report.
           </p>
         </div>
 
