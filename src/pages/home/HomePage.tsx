@@ -28,17 +28,17 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay, lang = 'en' }) => {
   const t = (key: any) => getTranslation(lang as Language, key);
   const [stats, setStats] = useState<{
-    registeredResidents: number;
-    participatingBarangays: number;
-    wasteRecycledKg: number;
-    cleanupActivities: number;
-    reportsResolved: number;
+    registeredResidents: number | null;
+    participatingBarangays: number | null;
+    wasteRecycledKg: number | null;
+    cleanupActivities: number | null;
+    reportsResolved: number | null;
   }>({
-    registeredResidents: 3690,
-    participatingBarangays: 56,
-    wasteRecycledKg: 142800,
-    cleanupActivities: 88,
-    reportsResolved: 940,
+    registeredResidents: null,
+    participatingBarangays: null,
+    wasteRecycledKg: null,
+    cleanupActivities: null,
+    reportsResolved: null,
   });
 
   const [topBarangays, setTopBarangays] = useState<Barangay[]>([]);
@@ -120,7 +120,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
                     <div className="text-2xl sm:text-3xl font-black text-emerald-400">
-                      {stats.wasteRecycledKg.toLocaleString()} kg
+                      {stats.wasteRecycledKg === null ? 'Not reported' : `${stats.wasteRecycledKg.toLocaleString()} kg`}
                     </div>
                     <div className="text-xs font-medium text-slate-400 mt-1 flex items-center gap-1">
                       <Recycle className="w-3.5 h-3.5 text-emerald-500" /> {t('wasteRecycledLabel')}
@@ -129,7 +129,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
 
                   <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
                     <div className="text-2xl sm:text-3xl font-black text-teal-400">
-                      {stats.participatingBarangays}
+                      {stats.participatingBarangays ?? '—'}
                     </div>
                     <div className="text-xs font-medium text-slate-400 mt-1 flex items-center gap-1">
                       <Building2 className="w-3.5 h-3.5 text-teal-500" /> {t('activeBarangaysLabel')}
@@ -138,7 +138,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
 
                   <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
                     <div className="text-2xl sm:text-3xl font-black text-cyan-400">
-                      {stats.reportsResolved}
+                      {stats.reportsResolved ?? '—'}
                     </div>
                     <div className="text-xs font-medium text-slate-400 mt-1 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5 text-cyan-500" /> {t('reportsResolvedLabel')}
@@ -147,7 +147,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onSelectBarangay
 
                   <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
                     <div className="text-2xl sm:text-3xl font-black text-amber-400">
-                      {stats.registeredResidents.toLocaleString()}
+                      {stats.registeredResidents?.toLocaleString() ?? '—'}
                     </div>
                     <div className="text-xs font-medium text-slate-400 mt-1 flex items-center gap-1">
                       <Users className="w-3.5 h-3.5 text-amber-500" /> {t('residentMembersLabel')}

@@ -27,9 +27,12 @@ import {
   EnvironmentalAsset,
   TreeItem,
   EnvironmentalAlert,
-  BarangayImprovement
+  BarangayImprovement,
+  RankingSnapshot
 } from '../types';
 import { canTransitionReportStatus, findPotentialDuplicateReports } from './reportWorkflow';
+import { updateRankingHistory } from './rankingHistory';
+import { getReportResolutionMetrics } from '../lib/reportTransparency';
 import {
   INITIAL_REGIONS,
   INITIAL_PROVINCES,
@@ -82,6 +85,7 @@ interface DBData {
   trees?: TreeItem[];
   alerts?: EnvironmentalAlert[];
   improvements?: BarangayImprovement[];
+  rankingSnapshots?: RankingSnapshot[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -112,6 +116,7 @@ const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' 
   { name: 'trees', idField: 'id' },
   { name: 'alerts', idField: 'id' },
   { name: 'improvements', idField: 'id' },
+  { name: 'rankingSnapshots', idField: 'id' },
 ];
 
 type StoredRecord = Record<string, unknown>;
@@ -222,6 +227,7 @@ class DBStore {
       trees: INITIAL_TREES,
       alerts: INITIAL_ALERTS,
       improvements: INITIAL_BARANGAY_IMPROVEMENTS,
+      rankingSnapshots: [],
     })) as DBData;
   }
 
@@ -407,6 +413,24 @@ class DBStore {
 
     // Update main array references
     this.data.barangays = sorted;
+    this.data.rankingSnapshots = updateRankingHistory(this.data.rankingSnapshots || [], sorted);
+  }
+
+  public captureDailyRankingSnapshotIfDue() {
+    const today = new Date().toISOString().slice(0, 10);
+    if ((this.data.rankingSnapshots || []).some(snapshot => snapshot.snapshotDate === today)) return;
+    this.recalculateRanks();
+    this.save();
+  }
+
+  public getRankingHistory(barangayId: string): RankingSnapshot[] {
+    return (this.data.rankingSnapshots || [])
+      .filter(snapshot => snapshot.entries.some(entry => entry.barangayId === barangayId))
+      .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))
+      .map(snapshot => ({
+        ...snapshot,
+        entries: snapshot.entries.filter(entry => entry.barangayId === barangayId),
+      }));
   }
 
   // Region / Province / City / Barangay APIs (Powered by official BetterGov PSGC dataset)
@@ -1508,15 +1532,20 @@ class DBStore {
   // System statistics summary for landing page
   public getStatsSummary() {
     const totalResidents = this.data.users.filter(user => user.role === 'RESIDENT').length;
-    const participatingBarangays = new Set(this.data.users.map(user => user.barangayId)).size;
-    const totalRecycled = this.data.barangays.reduce((acc, b) => acc + b.totalRecycledKg, 0);
+    const participatingBarangays = new Set(
+      this.data.users.filter(user => user.role === 'RESIDENT').map(user => user.barangayId)
+    ).size;
+    const verifiedRecyclingLogs = this.data.activityLogs.filter(log =>
+      log.type === 'Recycling' && log.verificationStatus === 'Verified'
+    );
+    const totalRecycled = verifiedRecyclingLogs.reduce((total, log) => total + (log.kgRecycled || 0), 0);
     const totalCleanups = this.data.events.filter(e => e.category === 'Cleanup').length;
     const totalResolvedReports = this.data.reports.filter(r => r.status === 'Resolved').length;
 
     return {
       registeredResidents: totalResidents,
       participatingBarangays,
-      wasteRecycledKg: Math.round(totalRecycled),
+      wasteRecycledKg: verifiedRecyclingLogs.length ? Math.round(totalRecycled) : null,
       cleanupActivities: totalCleanups,
       reportsResolved: totalResolvedReports,
     };
@@ -1816,6 +1845,7 @@ class DBStore {
     const resolved = reports.filter(r => r.status === 'Resolved').length;
     const facilities = this.getFacilities(barangayId);
     return {
+      ...getReportResolutionMetrics(reports),
       barangayId,
       barangayName: brgy?.name || 'Barangay',
       totalBudget: null,

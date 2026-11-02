@@ -531,7 +531,7 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
                 <p className="text-xs text-slate-600 dark:text-slate-300">{evt.description}</p>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
                   <span>📅 {evt.date} ({evt.time})</span>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-400">👥 {evt.registeredUserIds.length} Joined</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">👥 {evt.registeredCount ?? evt.registeredUserIds.length} Joined</span>
                 </div>
               </div>
             ))}

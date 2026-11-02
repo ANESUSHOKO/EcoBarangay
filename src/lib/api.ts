@@ -31,10 +31,25 @@ import {
   BarangayImprovement,
   FacilityStatus,
   PhotoValidationResult,
-  AIChatMessage
+  AIChatMessage,
+  RankingSnapshot
 } from '../types';
 import { clientStore } from './clientStore';
 import { auth } from './firebase';
+import type { ReportResolutionMetrics } from './reportTransparency';
+
+interface TransparencyMetrics extends ReportResolutionMetrics {
+  barangayId: string;
+  barangayName: string;
+  totalBudget: number | null;
+  fundsAllocatedWaste: number | null;
+  fundsSpent: number | null;
+  reportsTotal: number;
+  reportsResolved: number;
+  reportsResolutionRate: number | null;
+  mrfCount: number;
+  complianceRateRA9003: number | null;
+}
 
 let backendServerChecked = false;
 let isServerAvailable = false;
@@ -111,7 +126,7 @@ export const api = {
         fetchJSON<{
           registeredResidents: number;
           participatingBarangays: number;
-          wasteRecycledKg: number;
+          wasteRecycledKg: number | null;
           cleanupActivities: number;
           reportsResolved: number;
         }>('/api/stats/summary'),
@@ -229,6 +244,8 @@ export const api = {
       () => clientStore.getRankings(filters)
     );
   },
+  getRankingHistory: (barangayId: string) =>
+    fetchJSON<RankingSnapshot[]>(`/api/rankings/${encodeURIComponent(barangayId)}/history`),
 
   // Facilities
   getFacilities: (filters?: { barangayId?: string; category?: string; userLat?: number; userLng?: number }) => {
@@ -760,7 +777,7 @@ export const api = {
   // 5. Transparency Metrics
   getTransparencyMetrics: (barangayId: string) =>
     safeCall(
-      () => fetchJSON<any>(`/api/transparency/${barangayId}`),
+      () => fetchJSON<TransparencyMetrics>(`/api/transparency/${encodeURIComponent(barangayId)}`),
       async () => clientStore.getTransparencyMetrics(barangayId)
     ),
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../../lib/api';
-import { Barangay, Region, Province, City, Language } from '../../types';
+import { Barangay, Region, Province, City, Language, RankingSnapshot } from '../../types';
 import { getTranslation } from '../../lib/i18n';
 import { Award, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -17,6 +17,10 @@ interface BarangayRankingCardProps {
   onToggleExpand: (id: string) => void;
   onSelectBarangay: (b: Barangay) => void;
   onNavigate: (page: string) => void;
+  history: RankingSnapshot[];
+  historyLoading: boolean;
+  historyError?: string;
+  onLoadHistory: (id: string) => void;
 }
 
 const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
@@ -25,7 +29,12 @@ const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
   onToggleExpand,
   onSelectBarangay,
   onNavigate,
+  history,
+  historyLoading,
+  historyError,
+  onLoadHistory,
 }) => {
+  const [historyOpen, setHistoryOpen] = useState(false);
   return (
     <div className="bg-white rounded-3xl border border-slate-200/80 hover:border-emerald-300 transition-all shadow-2xs overflow-hidden">
       <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -74,6 +83,19 @@ const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
               View Profile
             </button>
 
+            <button
+              onClick={() => {
+                const nextOpen = !historyOpen;
+                setHistoryOpen(nextOpen);
+                if (nextOpen && history.length === 0) onLoadHistory(b.id);
+              }}
+              aria-expanded={historyOpen}
+              aria-label={`${historyOpen ? 'Hide' : 'Show'} ranking history for Barangay ${b.name}`}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer shrink-0"
+              title="View daily ranking history"
+            >
+              History
+            </button>
             <button
               onClick={() => onToggleExpand(b.id)}
               aria-expanded={isExpanded}
@@ -126,6 +148,32 @@ const BarangayRankingCard = React.memo<BarangayRankingCardProps>(({
           </div>
         </div>
       )}
+      {historyOpen && (
+        <div className="border-t border-slate-100 bg-white p-5" aria-live="polite">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Daily ranking history</h4>
+          <p className="mt-1 text-[11px] text-slate-500">Daily snapshots are retained for up to 365 days and include the top 100 recorded barangays. Scores are not independently verified or population-normalized.</p>
+          {historyLoading ? (
+            <p className="mt-3 text-xs text-slate-500">Loading history…</p>
+          ) : historyError ? (
+            <p role="alert" className="mt-3 text-xs text-rose-700">{historyError}</p>
+          ) : history.length ? (
+            <ol className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {history.map(snapshot => {
+                const entry = snapshot.entries[0];
+                if (!entry) return null;
+                return (
+                  <li key={snapshot.id} className="rounded-xl border border-slate-200 p-3 text-xs">
+                    <time dateTime={snapshot.snapshotDate} className="font-semibold text-slate-700">{snapshot.snapshotDate}</time>
+                    <span className="ml-2 text-slate-500">Rank #{entry.nationalRank} · {entry.score.totalScore}/100</span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <p className="mt-3 text-xs text-slate-500">No archived snapshots for this barangay yet. History begins with the next daily update.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 });
@@ -143,6 +191,9 @@ export const RankingsPage: React.FC<RankingsPageProps> = ({ onSelectBarangay, on
   const [search, setSearch] = useState('');
 
   const [expandedBarangayId, setExpandedBarangayId] = useState<string | null>(null);
+  const [rankingHistory, setRankingHistory] = useState<Record<string, RankingSnapshot[]>>({});
+  const [rankingHistoryErrors, setRankingHistoryErrors] = useState<Record<string, string>>({});
+  const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
 
   useEffect(() => {
     api.getRegions().then(setRegions).catch(console.error);
@@ -188,6 +239,22 @@ export const RankingsPage: React.FC<RankingsPageProps> = ({ onSelectBarangay, on
     setExpandedBarangayId(prev => (prev === id ? null : id));
   }, []);
 
+  const handleLoadHistory = useCallback((id: string) => {
+    if (rankingHistory[id] || loadingHistoryId === id) return;
+    setLoadingHistoryId(id);
+    setRankingHistoryErrors(current => ({ ...current, [id]: '' }));
+    api.getRankingHistory(id)
+      .then(history => setRankingHistory(current => ({ ...current, [id]: history })))
+      .catch(error => {
+        console.error('Could not load ranking history:', error);
+        setRankingHistoryErrors(current => ({
+          ...current,
+          [id]: error instanceof Error ? error.message : 'Could not load ranking history.',
+        }));
+      })
+      .finally(() => setLoadingHistoryId(current => current === id ? null : current));
+  }, [rankingHistory, loadingHistoryId]);
+
   // Memoized list of barangays to optimize render performance
   const memoizedBarangays = useMemo(() => {
     return barangays;
@@ -205,10 +272,10 @@ export const RankingsPage: React.FC<RankingsPageProps> = ({ onSelectBarangay, on
             Cleanest Barangays National Ranking
           </h1>
           <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-            "Mas Malinis na Barangay, Mas Mataas na Ranking." Scores combine seven dimensions with a 100-point maximum. Rankings reflect currently recorded data; population normalization and independent verification are not yet applied, so compare results cautiously.
+            "Mas Malinis na Barangay, Mas Mataas na Ranking." The documented 100-point formula weights waste management (25), recycling (20), community participation (20), report resolution (15), cleanups (10), challenges (5), and education (5). Scores are recorded values, not population-normalized or independently verified.
           </p>
           <p className="text-xs text-amber-200">
-            Data coverage varies. An unavailable or unverified indicator should not be interpreted as zero or as an official audited result.
+            Data coverage varies. An unavailable or unverified indicator should not be interpreted as zero or as an official audited result. Daily history is retained for up to 365 days for the top 100 recorded barangays.
           </p>
         </div>
       </div>
@@ -282,6 +349,10 @@ export const RankingsPage: React.FC<RankingsPageProps> = ({ onSelectBarangay, on
             onToggleExpand={handleToggleExpand}
             onSelectBarangay={onSelectBarangay}
             onNavigate={onNavigate}
+            history={rankingHistory[b.id] || []}
+            historyLoading={loadingHistoryId === b.id}
+            historyError={rankingHistoryErrors[b.id]}
+            onLoadHistory={handleLoadHistory}
           />
         ))}
 
