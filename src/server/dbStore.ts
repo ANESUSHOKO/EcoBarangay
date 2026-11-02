@@ -1,10 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import {
   User,
   Barangay,
   Facility,
   EnvironmentalReport,
+  OfficialPhotoReview,
   Event,
   Challenge,
   GarbageSchedule,
@@ -27,12 +29,12 @@ import {
   EnvironmentalAlert,
   BarangayImprovement
 } from '../types';
+import { canTransitionReportStatus, findPotentialDuplicateReports } from './reportWorkflow';
 import {
   INITIAL_REGIONS,
   INITIAL_PROVINCES,
   INITIAL_CITIES,
   INITIAL_BARANGAYS,
-  INITIAL_USERS,
   INITIAL_FACILITIES,
   INITIAL_REPORTS,
   INITIAL_EVENTS,
@@ -85,9 +87,43 @@ interface DBData {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const PSGC_DIR = path.join(DATA_DIR, 'psgc');
+const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' }> = [
+  { name: 'regions', idField: 'code' },
+  { name: 'provinces', idField: 'code' },
+  { name: 'cities', idField: 'code' },
+  { name: 'barangays', idField: 'id' },
+  { name: 'users', idField: 'id' },
+  { name: 'governmentPages', idField: 'id' },
+  { name: 'facilities', idField: 'id' },
+  { name: 'reports', idField: 'id' },
+  { name: 'events', idField: 'id' },
+  { name: 'challenges', idField: 'id' },
+  { name: 'schedules', idField: 'id' },
+  { name: 'activityLogs', idField: 'id' },
+  { name: 'announcements', idField: 'id' },
+  { name: 'feedPosts', idField: 'id' },
+  { name: 'notifications', idField: 'id' },
+  { name: 'calendarEvents', idField: 'id' },
+  { name: 'bulkPickups', idField: 'id' },
+  { name: 'businesses', idField: 'id' },
+  { name: 'organizations', idField: 'id' },
+  { name: 'familyGroups', idField: 'id' },
+  { name: 'assets', idField: 'id' },
+  { name: 'trees', idField: 'id' },
+  { name: 'alerts', idField: 'id' },
+  { name: 'improvements', idField: 'id' },
+];
+
+type StoredRecord = Record<string, unknown>;
+type StoredDocument = { collection: string; id: string; value: StoredRecord; serialized: string };
 
 class DBStore {
   private data!: DBData;
+  private readonly readyPromise: Promise<void>;
+  private firestoreRevision = 0;
+  private persistedDocuments = new Map<string, string>();
+  private writeQueue: Promise<void> = Promise.resolve();
+  private persistenceError: unknown = null;
   private psgcRegions: Region[] | null = null;
   private psgcProvinces: Province[] | null = null;
   private psgcCities: City[] | null = null;
@@ -95,133 +131,78 @@ class DBStore {
   private psgcAllBarangays: any[] | null = null;
 
   constructor() {
-    this.init();
+    this.data = this.createDefaultData();
     this.loadPsgcData();
+    this.readyPromise = this.initializeFromFirestore();
   }
 
-  public loadPsgcData() {
-    if (this.psgcRegions) return;
-    try {
-      if (fs.existsSync(path.join(PSGC_DIR, 'regions.json'))) {
-        this.psgcRegions = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'regions.json'), 'utf-8'));
-        this.psgcProvinces = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'provinces_and_independent_cities.json'), 'utf-8'));
-        this.psgcCities = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'cities.json'), 'utf-8'));
-        this.psgcBarangaysByCity = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'barangays_by_city.json'), 'utf-8'));
-        this.psgcAllBarangays = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'all_barangays_index.json'), 'utf-8'));
-        console.log(`[dbStore] Loaded PSGC official dataset: ${this.psgcRegions?.length} regions, ${this.psgcProvinces?.length} provinces/HUCs, ${this.psgcCities?.length} cities, ${this.psgcAllBarangays?.length} barangays.`);
-      }
-    } catch (e) {
-      console.warn('[dbStore] Note: Could not load data/psgc files, using fallback data:', e);
-    }
+  public async ready() {
+    await this.readyPromise;
   }
 
-  private init() {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+  public async refreshIfStale() {
+    await this.writeQueue;
+    if (!firestoreDb) throw new Error('Firebase Admin Firestore is not configured.');
+
+    const stateRef = firestoreDb.collection('_metadata').doc('appState');
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const stateSnapshot = await stateRef.get();
+      const revision = Number(stateSnapshot.get('revision') || 0);
+      if (revision === this.firestoreRevision) {
+        if (this.persistenceError) {
+          this.save();
+          await this.flush();
+        }
+        return;
       }
 
-      if (fs.existsSync(DB_FILE)) {
-        const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
-        this.data = JSON.parse(fileContent);
-        if (!this.data.feedPosts) {
-          this.data.feedPosts = INITIAL_FEED_POSTS;
-        }
-        if (!this.data.governmentPages) {
-          this.data.governmentPages = INITIAL_GOVERNMENT_PAGES;
-        }
-        if (!this.data.notifications) {
-          this.data.notifications = INITIAL_NOTIFICATIONS;
-        }
-        if (!this.data.calendarEvents) {
-          this.data.calendarEvents = INITIAL_CALENDAR_EVENTS;
-        }
-        if (!this.data.bulkPickups) {
-          this.data.bulkPickups = INITIAL_BULK_PICKUPS;
-        }
-        if (!this.data.businesses) {
-          this.data.businesses = INITIAL_BUSINESSES;
-        }
-        if (!this.data.organizations) {
-          this.data.organizations = INITIAL_ORGANIZATIONS;
-        }
-        if (!this.data.familyGroups) {
-          this.data.familyGroups = INITIAL_FAMILY_GROUPS;
-        }
-        if (!this.data.assets) {
-          this.data.assets = INITIAL_ASSETS;
-        }
-        if (!this.data.trees) {
-          this.data.trees = INITIAL_TREES;
-        }
-        if (!this.data.alerts) {
-          this.data.alerts = INITIAL_ALERTS;
-        }
-        if (!this.data.improvements) {
-          this.data.improvements = INITIAL_BARANGAY_IMPROVEMENTS;
-        }
-        // Ensure ranking calculations are up to date
-        this.recalculateRanks();
-      } else {
-        this.resetToDefaults();
-      }
+      const collectionSnapshots = await Promise.all(
+        FIRESTORE_COLLECTIONS.map(collection => firestoreDb!.collection(collection.name).get())
+      );
+      const latestState = await stateRef.get();
+      if (Number(latestState.get('revision') || 0) !== revision) continue;
 
-      // Sync existing users from Firestore if present
-      if (firestoreDb) {
-        this.loadUsersFromFirestore().catch(err => {
-          console.warn('Initial Firestore user fetch:', err);
-        });
-      }
-    } catch (err) {
-      console.error('Failed to load DB file, initializing default dataset:', err);
-      this.resetToDefaults();
-    }
-  }
-
-  private async loadUsersFromFirestore() {
-    if (!firestoreDb) return;
-    try {
-      const snap = await firestoreDb.collection('users').get();
-      if (!snap.empty) {
-        snap.forEach(docSnap => {
-          const remoteUser = docSnap.data() as User;
-          if (remoteUser && remoteUser.email) {
-            const idx = this.data.users.findIndex(
-              u => u.id === remoteUser.id || u.email.toLowerCase() === remoteUser.email.toLowerCase()
-            );
-            if (idx >= 0) {
-              this.data.users[idx] = { ...this.data.users[idx], ...remoteUser };
-            } else {
-              this.data.users.push(remoteUser);
-            }
+      const loadedData = this.createDefaultData();
+      for (const [index, collection] of FIRESTORE_COLLECTIONS.entries()) {
+        const records = collectionSnapshots[index].docs.map(document => {
+          const value = document.data() as StoredRecord;
+          if (typeof value[collection.idField] !== 'string') {
+            value[collection.idField] = document.id;
           }
+          return value;
         });
-        this.saveLocal();
-        console.log(`Loaded ${snap.size} user accounts from Firestore.`);
+        Object.assign(loadedData, { [collection.name]: records });
       }
-    } catch (err) {
-      console.error('Error fetching users from Firestore in dbStore:', err);
+
+      this.data = loadedData;
+      this.firestoreRevision = revision;
+      this.persistedDocuments = new Map(
+        Array.from(this.collectDocuments(loadedData), ([documentPath, document]) => [
+          documentPath,
+          document.serialized,
+        ])
+      );
+      this.persistenceError = null;
+      return;
+    }
+
+    throw new Error('Firestore changed repeatedly while reloading application data.');
+  }
+
+  public async flush() {
+    await this.writeQueue;
+    if (this.persistenceError) {
+      throw new Error('Firestore could not persist the requested change.', { cause: this.persistenceError });
     }
   }
 
-  private saveLocal() {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Error writing local DB file:', err);
-    }
-  }
-
-  private resetToDefaults() {
-    this.data = {
+  private createDefaultData(): DBData {
+    return JSON.parse(JSON.stringify({
       regions: INITIAL_REGIONS,
       provinces: INITIAL_PROVINCES,
       cities: INITIAL_CITIES,
       barangays: INITIAL_BARANGAYS,
-      users: INITIAL_USERS,
+      users: [],
       governmentPages: INITIAL_GOVERNMENT_PAGES,
       facilities: INITIAL_FACILITIES,
       reports: INITIAL_REPORTS,
@@ -241,68 +222,170 @@ class DBStore {
       trees: INITIAL_TREES,
       alerts: INITIAL_ALERTS,
       improvements: INITIAL_BARANGAY_IMPROVEMENTS,
-    };
+    })) as DBData;
+  }
+
+  private readLegacyData(): Record<string, unknown> | null {
+    if (!fs.existsSync(DB_FILE)) return null;
+    const parsed: unknown = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('The legacy data/db.json file is not a valid data object.');
+    }
+    return parsed as Record<string, unknown>;
+  }
+
+  private async initializeFromFirestore() {
+    if (!firestoreDb) {
+      throw new Error('Firebase Admin Firestore is required; configure Application Default Credentials.');
+    }
+
+    const stateRef = firestoreDb.collection('_metadata').doc('appState');
+    const [stateSnapshot, ...collectionSnapshots] = await Promise.all([
+      stateRef.get(),
+      ...FIRESTORE_COLLECTIONS.map(collection => firestoreDb!.collection(collection.name).get()),
+    ]);
+    const isMigrated = stateSnapshot.exists && stateSnapshot.get('schemaVersion') === 1;
+    this.firestoreRevision = Number(stateSnapshot.get('revision') || 0);
+    const legacyData = isMigrated ? null : this.readLegacyData();
+    const loadedData = this.createDefaultData();
+
+    for (const [index, collection] of FIRESTORE_COLLECTIONS.entries()) {
+      const snapshot = collectionSnapshots[index];
+      if (!snapshot.empty) {
+        const records = snapshot.docs.map(document => {
+          const value = document.data() as StoredRecord;
+          if (typeof value[collection.idField] !== 'string') {
+            value[collection.idField] = document.id;
+          }
+          return value;
+        });
+        Object.assign(loadedData, { [collection.name]: records });
+        for (const document of snapshot.docs) {
+          const value = document.data() as StoredRecord;
+          if (typeof value[collection.idField] !== 'string') value[collection.idField] = document.id;
+          this.persistedDocuments.set(`${collection.name}/${document.id}`, JSON.stringify(value));
+        }
+        continue;
+      }
+
+      const legacyRecords = legacyData?.[collection.name];
+      if (!isMigrated && Array.isArray(legacyRecords) && legacyRecords.length > 0) {
+        Object.assign(loadedData, { [collection.name]: legacyRecords });
+      } else if (isMigrated || collection.name === 'users') {
+        Object.assign(loadedData, { [collection.name]: [] });
+      }
+    }
+
+    this.data = loadedData;
     this.recalculateRanks();
-    this.save();
+    await this.persistSnapshot(this.cloneData(this.data), !isMigrated);
+    console.log(`[dbStore] Firestore ready at revision ${this.firestoreRevision}.`);
+  }
+
+  private cloneData(data: DBData): DBData {
+    return JSON.parse(JSON.stringify(data)) as DBData;
+  }
+
+  private collectDocuments(data: DBData): Map<string, StoredDocument> {
+    const documents = new Map<string, StoredDocument>();
+    for (const collection of FIRESTORE_COLLECTIONS) {
+      const records = (data[collection.name] || []) as unknown as StoredRecord[];
+      for (const record of records) {
+        const id = record[collection.idField];
+        if (typeof id !== 'string' || !id) {
+          throw new Error(`A record in ${collection.name} is missing its ${collection.idField}.`);
+        }
+        const serialized = JSON.stringify(record);
+        const documentPath = `${collection.name}/${id}`;
+        if (documents.has(documentPath)) {
+          throw new Error(`Duplicate document ID "${id}" in ${collection.name}.`);
+        }
+        documents.set(documentPath, {
+          collection: collection.name,
+          id,
+          value: JSON.parse(serialized) as StoredRecord,
+          serialized,
+        });
+      }
+    }
+    return documents;
+  }
+
+  private async persistSnapshot(snapshot: DBData, forceStateWrite = false) {
+    if (!firestoreDb) throw new Error('Firebase Admin Firestore is not configured.');
+
+    const currentDocuments = this.collectDocuments(snapshot);
+    const operations: Array<{ path: string; document?: StoredDocument }> = [];
+    for (const [documentPath, document] of currentDocuments) {
+      if (this.persistedDocuments.get(documentPath) !== document.serialized) {
+        operations.push({ path: documentPath, document });
+      }
+    }
+    for (const documentPath of this.persistedDocuments.keys()) {
+      if (!currentDocuments.has(documentPath)) operations.push({ path: documentPath });
+    }
+
+    if (!operations.length && !forceStateWrite) return;
+    if (operations.length > 499) {
+      throw new Error('This Firestore update exceeds the 499-record transaction limit.');
+    }
+
+    const stateRef = firestoreDb.collection('_metadata').doc('appState');
+    await firestoreDb.runTransaction(async transaction => {
+      const stateSnapshot = await transaction.get(stateRef);
+      const currentRevision = Number(stateSnapshot.get('revision') || 0);
+      if (currentRevision !== this.firestoreRevision) {
+        throw new Error('Firestore changed during this request; retry after the application reloads its state.');
+      }
+
+      for (const operation of operations) {
+        const [collection, id] = operation.path.split('/');
+        const reference = firestoreDb!.collection(collection).doc(id);
+        if (operation.document) {
+          transaction.set(reference, operation.document.value);
+        } else {
+          transaction.delete(reference);
+        }
+      }
+      transaction.set(stateRef, {
+        schemaVersion: 1,
+        revision: currentRevision + 1,
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    this.persistedDocuments = new Map(
+      Array.from(currentDocuments, ([documentPath, document]) => [documentPath, document.serialized])
+    );
+    this.firestoreRevision += 1;
+    this.persistenceError = null;
+  }
+
+  public loadPsgcData() {
+    if (this.psgcRegions) return;
+    try {
+      if (fs.existsSync(path.join(PSGC_DIR, 'regions.json'))) {
+        this.psgcRegions = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'regions.json'), 'utf-8'));
+        this.psgcProvinces = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'provinces_and_independent_cities.json'), 'utf-8'));
+        this.psgcCities = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'cities.json'), 'utf-8'));
+        this.psgcBarangaysByCity = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'barangays_by_city.json'), 'utf-8'));
+        this.psgcAllBarangays = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'all_barangays_index.json'), 'utf-8'));
+        console.log(`[dbStore] Loaded PSGC official dataset: ${this.psgcRegions?.length} regions, ${this.psgcProvinces?.length} provinces/HUCs, ${this.psgcCities?.length} cities, ${this.psgcAllBarangays?.length} barangays.`);
+      }
+    } catch (e) {
+      console.warn('[dbStore] Note: Could not load data/psgc files, using fallback data:', e);
+    }
   }
 
   private save() {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
-
-      // Asynchronously mirror key collections to Firestore
-      if (firestoreDb) {
-        this.syncToFirestore().catch(err => {
-          console.error('Failed to sync to Firestore:', err);
-        });
-      }
-    } catch (err) {
-      console.error('Error saving DB file:', err);
-    }
-  }
-
-  private async syncToFirestore() {
-    if (!firestoreDb) return;
-    try {
-      const batch = firestoreDb.batch();
-
-      // Sync Users
-      for (const user of this.data.users) {
-        const ref = firestoreDb.collection('users').doc(user.id);
-        batch.set(ref, JSON.parse(JSON.stringify(user)), { merge: true });
-      }
-
-      // Sync Reports
-      for (const report of this.data.reports) {
-        const ref = firestoreDb.collection('reports').doc(report.id);
-        batch.set(ref, JSON.parse(JSON.stringify(report)), { merge: true });
-      }
-
-      // Sync Feed Posts
-      for (const post of this.data.feedPosts) {
-        const ref = firestoreDb.collection('feedPosts').doc(post.id);
-        batch.set(ref, JSON.parse(JSON.stringify(post)), { merge: true });
-      }
-
-      // Sync Events
-      for (const event of this.data.events) {
-        const ref = firestoreDb.collection('events').doc(event.id);
-        batch.set(ref, JSON.parse(JSON.stringify(event)), { merge: true });
-      }
-
-      // Sync Barangays
-      for (const brgy of this.data.barangays) {
-        const ref = firestoreDb.collection('barangays').doc(brgy.id);
-        batch.set(ref, JSON.parse(JSON.stringify(brgy)), { merge: true });
-      }
-
-      await batch.commit();
-    } catch (err) {
-      console.error('Firestore batch write error:', err);
-    }
+    const snapshot = this.cloneData(this.data);
+    this.writeQueue = this.writeQueue
+      .catch(() => undefined)
+      .then(() => this.persistSnapshot(snapshot))
+      .catch(error => {
+        this.persistenceError = error;
+        console.error('[dbStore] Firestore write failed:', error);
+      });
   }
 
   public recalculateRanks() {
@@ -538,7 +621,7 @@ class DBStore {
     const newUser: User = {
       ...userData,
       id: `user-${Date.now()}`,
-      ecoPoints: 50, // Welcome points
+      ecoPoints: 0,
       ecoScore: 60,
       kgRecycled: 0,
       challengesCompleted: 0,
@@ -553,21 +636,6 @@ class DBStore {
     }
 
     this.save();
-
-    // Persist immediately to Firestore
-    if (firestoreDb) {
-      firestoreDb
-        .collection('users')
-        .doc(newUser.id)
-        .set(JSON.parse(JSON.stringify(newUser)), { merge: true })
-        .then(() => {
-          console.log(`Successfully stored user account ${newUser.id} (${newUser.email}) in Firestore.`);
-        })
-        .catch(err => {
-          console.error('Error saving user to Firestore in createUser:', err);
-        });
-    }
-
     return newUser;
   }
 
@@ -576,17 +644,6 @@ class DBStore {
     if (user) {
       Object.assign(user, updates);
       this.save();
-
-      // Persist updates to Firestore
-      if (firestoreDb) {
-        firestoreDb
-          .collection('users')
-          .doc(id)
-          .set(JSON.parse(JSON.stringify(user)), { merge: true })
-          .catch(err => {
-            console.error('Error updating user in Firestore:', err);
-          });
-      }
     }
     return user;
   }
@@ -646,11 +703,21 @@ class DBStore {
   }
 
   public createReport(data: Omit<EnvironmentalReport, 'id' | 'status' | 'createdAt'>) {
+    const now = new Date();
+    const id = `rep-${randomUUID()}`;
     const newReport: EnvironmentalReport = {
       ...data,
-      id: `rep-${Date.now()}`,
+      id,
+      trackingNumber: `EB-${now.getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`,
       status: 'Pending',
-      createdAt: new Date().toISOString(),
+      createdAt: now.toISOString(),
+      statusHistory: [{
+        status: 'Pending',
+        changedAt: now.toISOString(),
+        changedBy: data.reporterId,
+      }],
+      possibleDuplicateIds: findPotentialDuplicateReports(data, this.data.reports, now)
+        .map(report => report.id),
     };
     this.data.reports.push(newReport);
 
@@ -658,19 +725,6 @@ class DBStore {
     const brgy = this.getBarangayById(data.barangayId);
     if (brgy) {
       brgy.totalReportsReceived += 1;
-    }
-
-    // Award eco points to reporter
-    const user = this.getUserById(data.reporterId);
-    if (user) {
-      user.ecoPoints += 30;
-      this.addActivityLog({
-        userId: user.id,
-        type: 'Report',
-        title: `Reported ${data.category}`,
-        description: data.description,
-        pointsEarned: 30,
-      });
     }
 
     // Create notification
@@ -688,11 +742,43 @@ class DBStore {
     return newReport;
   }
 
-  public updateReportStatus(id: string, status: EnvironmentalReport['status'], notes?: string) {
+  public updateReportStatus(
+    id: string,
+    status: EnvironmentalReport['status'],
+    notes: string | undefined,
+    officialId: string,
+    evidenceUrl?: string,
+    assignedTeam?: string,
+  ) {
     const report = this.data.reports.find(r => r.id === id);
     if (report) {
+      if (report.status === status) return report;
+      if (!canTransitionReportStatus(
+        report.status,
+        status,
+        report.reopenRequest?.status === 'Pending',
+      )) return null;
+
+      const now = new Date().toISOString();
       report.status = status;
-      if (notes) report.officialNotes = notes;
+      if (status === 'Assigned' && assignedTeam) report.assignedTeam = assignedTeam.trim();
+      if (report.reopenRequest?.status === 'Pending' && status === 'In Progress') {
+        report.reopenRequest.status = 'Approved';
+      }
+      if (notes?.trim()) {
+        report.officialNotes = notes.trim();
+        report.resolutionDescription = notes.trim();
+      }
+      if (evidenceUrl) report.afterPhotoUrl = evidenceUrl;
+      if (!report.statusHistory) report.statusHistory = [];
+      report.statusHistory.push({
+        status,
+        changedAt: now,
+        changedBy: officialId,
+        notes: notes?.trim() || undefined,
+        evidenceUrl,
+        assignedTeam: status === 'Assigned' ? assignedTeam?.trim() : undefined,
+      });
 
       const brgy = this.getBarangayById(report.barangayId);
 
@@ -708,7 +794,23 @@ class DBStore {
       });
 
       if (status === 'Resolved' && !report.resolvedAt) {
-        report.resolvedAt = new Date().toISOString();
+        report.resolvedAt = now;
+        report.resolutionDate = now;
+        const reporter = this.getUserById(report.reporterId);
+        if (reporter) {
+          reporter.ecoPoints += 30;
+          this.addActivityLog({
+            userId: reporter.id,
+            type: 'Report',
+            title: `Verified ${report.category} report`,
+            description: report.description,
+            pointsEarned: 30,
+            verificationStatus: 'Verified',
+            verifiedBy: officialId,
+            verifiedAt: now,
+            sourceId: report.id,
+          });
+        }
         const brgy = this.getBarangayById(report.barangayId);
         if (brgy) {
           brgy.totalReportsResolved += 1;
@@ -728,6 +830,99 @@ class DBStore {
       }
       this.save();
     }
+    return report;
+  }
+
+  public submitReportFeedback(
+    reportId: string,
+    reporterId: string,
+    rating: number,
+    comment?: string,
+    reopenReason?: string,
+  ) {
+    const report = this.data.reports.find(item => item.id === reportId);
+    if (!report || report.reporterId !== reporterId || report.status !== 'Resolved' || report.resolutionFeedback) {
+      return null;
+    }
+
+    const submittedAt = new Date().toISOString();
+    report.resolutionFeedback = { rating, comment, submittedAt };
+    if (reopenReason) {
+      report.reopenRequest = {
+        residentAnswer: 'YES',
+        reason: reopenReason,
+        requestedAt: submittedAt,
+        status: 'Pending',
+      };
+    }
+    this.createNotification({
+      type: 'REPORT_UPDATE',
+      title: reopenReason ? 'Report Reopen Requested' : 'Resolution Feedback Received',
+      message: reopenReason
+        ? `The resident requested another review of report ${report.trackingNumber || report.id}.`
+        : `The resident provided feedback on report ${report.trackingNumber || report.id}.`,
+      barangayId: report.barangayId,
+      barangayName: report.barangayName,
+      targetTab: 'reports',
+      linkId: report.id,
+    });
+    this.save();
+    return report;
+  }
+
+  public decideReportReopenRequest(
+    reportId: string,
+    officialId: string,
+    decision: 'Approved' | 'Rejected',
+    notes: string,
+  ) {
+    const report = this.data.reports.find(item => item.id === reportId);
+    if (!report || report.status !== 'Resolved' || report.reopenRequest?.status !== 'Pending') return null;
+    if (decision === 'Approved') {
+      return this.updateReportStatus(reportId, 'In Progress', notes, officialId);
+    }
+
+    const changedAt = new Date().toISOString();
+    report.reopenRequest.status = 'Rejected';
+    if (!report.statusHistory) report.statusHistory = [];
+    report.statusHistory.push({
+      status: 'Resolved',
+      changedAt,
+      changedBy: officialId,
+      notes: notes.trim(),
+      action: 'Reopen request rejected',
+    });
+    this.createNotification({
+      type: 'REPORT_UPDATE',
+      title: 'Reopen request declined',
+      message: `The barangay reviewed your reopen request for ${report.trackingNumber || report.id}.`,
+      barangayId: report.barangayId,
+      barangayName: report.barangayName,
+      recipientUserId: report.reporterId,
+      targetTab: 'reports',
+      linkId: report.id,
+    });
+    this.save();
+    return report;
+  }
+
+  public reviewReportPhotoSuggestion(
+    reportId: string,
+    officialId: string,
+    decision: OfficialPhotoReview['decision'],
+    correctedCategory?: EnvironmentalReport['category'],
+    notes?: string,
+  ) {
+    const report = this.data.reports.find(item => item.id === reportId);
+    if (!report?.photoAssessment) return null;
+    report.photoAssessment.officialReview = {
+      decision,
+      correctedCategory: decision === 'Corrected' ? correctedCategory : undefined,
+      notes: notes?.trim() || undefined,
+      reviewedBy: officialId,
+      reviewedAt: new Date().toISOString(),
+    };
+    this.save();
     return report;
   }
 
@@ -766,21 +961,6 @@ class DBStore {
     };
     this.data.events.push(newEvent);
 
-    // Boost barangay cleanup score
-    const brgy = this.getBarangayById(data.barangayId);
-    if (brgy) {
-      brgy.score.cleanupActivities = Math.min(10, brgy.score.cleanupActivities + 1);
-      brgy.score.totalScore =
-        brgy.score.wasteManagement +
-        brgy.score.recycling +
-        brgy.score.communityParticipation +
-        brgy.score.reportsResolution +
-        brgy.score.cleanupActivities +
-        brgy.score.sustainabilityChallenges +
-        brgy.score.educationParticipation;
-      this.recalculateRanks();
-    }
-
     this.save();
     return newEvent;
   }
@@ -791,16 +971,6 @@ class DBStore {
       event.registeredUserIds.push(userId);
       const user = this.getUserById(userId);
       if (user) {
-        user.ecoPoints += event.pointsAwarded;
-        user.cleanupActivitiesCount += 1;
-        this.addActivityLog({
-          userId,
-          type: 'Event',
-          title: `Joined ${event.title}`,
-          description: `Participating in ${event.category} on ${event.date}`,
-          pointsEarned: event.pointsAwarded,
-        });
-
         // Trigger notification for new event sign-up
         this.createNotification({
           type: 'EVENT_SIGNUP',
@@ -835,19 +1005,6 @@ class DBStore {
       if (!chl.joinedUserIds.includes(userId)) chl.joinedUserIds.push(userId);
       if (!chl.completedUserIds.includes(userId)) {
         chl.completedUserIds.push(userId);
-        const user = this.getUserById(userId);
-        if (user) {
-          user.ecoPoints += chl.pointsAwarded;
-          user.challengesCompleted += 1;
-          user.ecoScore = Math.min(100, user.ecoScore + 5);
-          this.addActivityLog({
-            userId,
-            type: 'Challenge',
-            title: `Completed ${chl.title}`,
-            description: `Earned ${chl.pointsAwarded} Eco Points!`,
-            pointsEarned: chl.pointsAwarded,
-          });
-        }
         this.save();
       }
     }
@@ -862,49 +1019,85 @@ class DBStore {
     return this.data.schedules;
   }
 
-  public createSchedule(data: Omit<GarbageSchedule, 'id'>) {
+  public createSchedule(data: Omit<GarbageSchedule, 'id' | 'history'>, officialId: string) {
+    const now = new Date().toISOString();
     const newSch: GarbageSchedule = {
       ...data,
-      id: `sch-${Date.now()}`,
+      id: `sch-${randomUUID()}`,
+      active: true,
+      history: [{
+        changedAt: now,
+        changedBy: officialId,
+        changedFields: ['created'],
+        previousValues: {},
+      }],
     };
     this.data.schedules.push(newSch);
+    this.createNotification({
+      type: 'SCHEDULE',
+      title: 'Waste collection schedule updated',
+      message: `A ${newSch.wasteType} collection schedule was published for ${newSch.dayOfWeek}.`,
+      barangayId: newSch.barangayId,
+      barangayName: newSch.barangayName,
+      targetTab: 'schedule',
+      linkId: newSch.id,
+    });
     this.save();
     return newSch;
+  }
+
+  public updateSchedule(
+    id: string,
+    updates: Partial<Pick<GarbageSchedule, 'dayOfWeek' | 'timeSlot' | 'wasteType' | 'instructions' | 'truckNo' | 'zoneId' | 'zonesCovered' | 'collectionTeam' | 'vehicleNumber' | 'active'>>,
+    officialId: string,
+  ) {
+    const schedule = this.data.schedules.find(item => item.id === id);
+    if (!schedule) return null;
+
+    const changedFields = Object.keys(updates).filter(key =>
+      updates[key as keyof typeof updates] !== undefined &&
+      updates[key as keyof typeof updates] !== schedule[key as keyof typeof updates]
+    );
+    if (changedFields.length === 0) return schedule;
+
+    const previousValues: NonNullable<GarbageSchedule['history']>[number]['previousValues'] = {};
+    for (const key of changedFields) {
+      Object.assign(previousValues, { [key]: schedule[key as keyof GarbageSchedule] });
+    }
+    Object.assign(schedule, updates);
+    if (!schedule.history) schedule.history = [];
+    schedule.history.push({
+      changedAt: new Date().toISOString(),
+      changedBy: officialId,
+      changedFields,
+      previousValues,
+    });
+    this.createNotification({
+      type: 'SCHEDULE',
+      title: 'Waste collection schedule changed',
+      message: `${schedule.wasteType} collection on ${schedule.dayOfWeek} was updated. Check the latest schedule details.`,
+      barangayId: schedule.barangayId,
+      barangayName: schedule.barangayName,
+      targetTab: 'schedule',
+      linkId: schedule.id,
+    });
+    this.save();
+    return schedule;
   }
 
   // Recycling log
   public logWasteRecycled(userId: string, kg: number, wasteType: string, photoUrl?: string, autoPostToFeed?: boolean) {
     const user = this.getUserById(userId);
     if (user) {
-      user.kgRecycled += kg;
-      const points = Math.round(kg * 10);
-      user.ecoPoints += points;
-      user.ecoScore = Math.min(100, user.ecoScore + 2);
-
-      // Update barangay total recycled
-      const brgy = this.getBarangayById(user.barangayId);
-      if (brgy) {
-        brgy.totalRecycledKg += kg;
-        brgy.score.recycling = Math.min(20, Math.round(brgy.score.recycling + (kg / 100)));
-        brgy.score.totalScore =
-          brgy.score.wasteManagement +
-          brgy.score.recycling +
-          brgy.score.communityParticipation +
-          brgy.score.reportsResolution +
-          brgy.score.cleanupActivities +
-          brgy.score.sustainabilityChallenges +
-          brgy.score.educationParticipation;
-        this.recalculateRanks();
-      }
-
       this.addActivityLog({
         userId,
         type: 'Recycling',
-        title: `Logged ${kg} kg of ${wasteType}`,
-        description: `Contributed to ${user.barangayName} recycling score`,
-        pointsEarned: points,
+        title: `Submitted ${kg} kg of ${wasteType} for verification`,
+        description: 'Points and recycling totals are updated after an official verifies the activity.',
+        pointsEarned: 0,
         kgRecycled: kg,
         photoUrl,
+        verificationStatus: 'Pending',
       });
 
       if (autoPostToFeed) {
@@ -915,9 +1108,8 @@ class DBStore {
           authorRole: user.role,
           barangayId: user.barangayId,
           barangayName: user.barangayName,
-          content: `I just recycled ${kg} kg of ${wasteType}! ♻️ Supporting our barangay's zero-waste journey.`,
-          photoUrl: photoUrl || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80&w=800',
-          wasteKg: kg,
+          content: `I submitted ${kg} kg of ${wasteType} for recycling verification! ♻️`,
+          photoUrl,
           wasteType,
         });
       }
@@ -1162,10 +1354,77 @@ class DBStore {
     return this.data.activityLogs;
   }
 
+  public getPendingEcoActivities(barangayId: string) {
+    return this.data.activityLogs.filter(log => {
+      if (!['Recycling', 'Education'].includes(log.type) || log.verificationStatus !== 'Pending') return false;
+      return this.getUserById(log.userId)?.barangayId === barangayId;
+    });
+  }
+
+  public submitSegregationQuiz(userId: string) {
+    const sourceId = 'segregation-quiz-v1';
+    const alreadySubmitted = this.data.activityLogs.some(log => log.userId === userId && log.sourceId === sourceId);
+    if (alreadySubmitted) return null;
+    return this.addActivityLog({
+      userId,
+      type: 'Education',
+      title: 'Passed the waste segregation quiz',
+      description: 'Quiz score passed the server-side answer check; an official must approve the points.',
+      pointsEarned: 0,
+      verificationStatus: 'Pending',
+      sourceId,
+    });
+  }
+
+  public reviewEcoActivity(
+    activityId: string,
+    officialId: string,
+    status: 'Verified' | 'Rejected',
+    pointsAwarded: number,
+    notes: string,
+  ) {
+    const activity = this.data.activityLogs.find(log => log.id === activityId);
+    if (!activity || !['Recycling', 'Education'].includes(activity.type) || activity.verificationStatus !== 'Pending') return null;
+    const resident = this.getUserById(activity.userId);
+    if (!resident) return null;
+
+    activity.verificationStatus = status;
+    activity.verifiedBy = officialId;
+    activity.verifiedAt = new Date().toISOString();
+    activity.verificationNotes = notes.trim();
+    activity.pointsEarned = status === 'Verified' ? pointsAwarded : 0;
+    if (status === 'Verified') {
+      resident.ecoPoints += pointsAwarded;
+      if (activity.type === 'Recycling') {
+        resident.kgRecycled += activity.kgRecycled || 0;
+        const barangay = this.getBarangayById(resident.barangayId);
+        if (barangay) {
+          barangay.totalRecycledKg += activity.kgRecycled || 0;
+        }
+      }
+    }
+
+    const activityLabel = activity.type === 'Recycling' ? 'Recycling activity' : 'Education activity';
+    this.createNotification({
+      type: 'REPORT_UPDATE',
+      title: `${activityLabel} ${status === 'Verified' ? 'verified' : 'not verified'}`,
+      message: activity.type === 'Recycling'
+        ? `Your ${activity.kgRecycled || 0} kg recycling submission was ${status.toLowerCase()}${status === 'Verified' ? ` with ${pointsAwarded} Eco Points` : ''}.`
+        : `Your waste segregation quiz was ${status.toLowerCase()}${status === 'Verified' ? ` with ${pointsAwarded} Eco Points` : ''}.`,
+      barangayId: resident.barangayId,
+      barangayName: resident.barangayName,
+      recipientUserId: resident.id,
+      targetTab: 'dashboard',
+      linkId: activity.id,
+    });
+    this.save();
+    return activity;
+  }
+
   public addActivityLog(data: Omit<UserActivityLog, 'id' | 'createdAt'>) {
     const log: UserActivityLog = {
       ...data,
-      id: `act-${Date.now()}`,
+      id: `act-${randomUUID()}`,
       createdAt: new Date().toISOString(),
     };
     this.data.activityLogs.unshift(log);
@@ -1193,7 +1452,7 @@ class DBStore {
   }
 
   // Notifications System
-  public getNotifications(barangayId?: string) {
+  public getNotifications(barangayId?: string, userId?: string) {
     if (!this.data.notifications) {
       this.data.notifications = INITIAL_NOTIFICATIONS;
     }
@@ -1201,6 +1460,7 @@ class DBStore {
     if (barangayId) {
       list = list.filter(n => !n.barangayId || n.barangayId === barangayId);
     }
+    list = list.filter(notification => !notification.recipientUserId || notification.recipientUserId === userId);
     return [...list].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
 
@@ -1231,12 +1491,13 @@ class DBStore {
     return notif;
   }
 
-  public markAllNotificationsAsRead(barangayId?: string) {
+  public markAllNotificationsAsRead(barangayId?: string, userId?: string) {
     if (!this.data.notifications) {
       this.data.notifications = INITIAL_NOTIFICATIONS;
     }
     this.data.notifications.forEach(n => {
-      if (!barangayId || n.barangayId === barangayId) {
+      if ((!barangayId || n.barangayId === barangayId) &&
+          (!n.recipientUserId || n.recipientUserId === userId)) {
         n.read = true;
       }
     });
@@ -1246,18 +1507,18 @@ class DBStore {
 
   // System statistics summary for landing page
   public getStatsSummary() {
-    const totalResidents = this.data.users.length;
-    const totalBarangays = this.data.barangays.length;
+    const totalResidents = this.data.users.filter(user => user.role === 'RESIDENT').length;
+    const participatingBarangays = new Set(this.data.users.map(user => user.barangayId)).size;
     const totalRecycled = this.data.barangays.reduce((acc, b) => acc + b.totalRecycledKg, 0);
     const totalCleanups = this.data.events.filter(e => e.category === 'Cleanup').length;
     const totalResolvedReports = this.data.reports.filter(r => r.status === 'Resolved').length;
 
     return {
-      registeredResidents: totalResidents + 2450, // Added realistic scale
-      participatingBarangays: totalBarangays + 42,
-      wasteRecycledKg: Math.round(totalRecycled + 18700),
-      cleanupActivities: totalCleanups + 34,
-      reportsResolved: totalResolvedReports + 128,
+      registeredResidents: totalResidents,
+      participatingBarangays,
+      wasteRecycledKg: Math.round(totalRecycled),
+      cleanupActivities: totalCleanups,
+      reportsResolved: totalResolvedReports,
     };
   }
 
@@ -1293,35 +1554,85 @@ class DBStore {
     return list;
   }
 
-  public createBulkPickup(data: any): BulkWastePickupRequest {
+  public createBulkPickup(
+    data: Omit<BulkWastePickupRequest, 'id' | 'trackingNumber' | 'status' | 'statusHistory' | 'createdAt'>,
+  ): BulkWastePickupRequest {
     if (!this.data.bulkPickups) this.data.bulkPickups = INITIAL_BULK_PICKUPS;
+    const now = new Date();
+    const createdAt = now.toISOString();
     const newReq: BulkWastePickupRequest = {
-      id: `bulk-${Date.now()}`,
-      userId: data.userId || 'anonymous',
-      userName: data.userName || 'Resident',
-      userPhone: data.userPhone || data.phone || '09123456789',
-      barangayId: data.barangayId || '',
-      barangayName: data.barangayName || '',
-      wasteType: data.wasteType || 'Furniture',
-      quantityDescription: data.quantityDescription || data.description || '1 item',
+      ...data,
+      id: `bulk-${randomUUID()}`,
+      trackingNumber: `BP-${now.getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`,
       photoUrl: data.photoUrl,
-      locationAddress: data.locationAddress || data.pickupAddress || '',
-      preferredPickupDate: data.preferredPickupDate || data.preferredDate || new Date().toISOString().split('T')[0],
-      notes: data.notes,
       status: 'Submitted',
-      createdAt: new Date().toISOString(),
+      statusHistory: [{
+        status: 'Submitted',
+        changedAt: createdAt,
+        changedBy: data.userId,
+      }],
+      createdAt,
     };
     this.data.bulkPickups.unshift(newReq);
+    this.createNotification({
+      type: 'SCHEDULE',
+      title: 'Bulk pickup request submitted',
+      message: `Bulk pickup ${newReq.trackingNumber} is awaiting barangay scheduling.`,
+      barangayId: newReq.barangayId,
+      barangayName: newReq.barangayName,
+      targetTab: 'schedule',
+      linkId: newReq.id,
+    });
     this.save();
     return newReq;
   }
 
-  public updateBulkPickupStatus(id: string, status: BulkWasteStatus, scheduledDate?: string): BulkWastePickupRequest | null {
+  public updateBulkPickupStatus(
+    id: string,
+    status: BulkWasteStatus,
+    scheduledDate: string | undefined,
+    changedBy: string,
+    notes?: string,
+    collectionTeam?: string,
+    vehicleNumber?: string,
+  ): BulkWastePickupRequest | null {
     if (!this.data.bulkPickups) this.data.bulkPickups = INITIAL_BULK_PICKUPS;
     const req = this.data.bulkPickups.find(b => b.id === id);
     if (req) {
+      const transitions: Record<BulkWasteStatus, BulkWasteStatus[]> = {
+        Submitted: ['Scheduled', 'Cancelled'],
+        Scheduled: ['Missed', 'Collected', 'Cancelled'],
+        Missed: ['Scheduled', 'Cancelled'],
+        Collected: ['Completed'],
+        Completed: [],
+        Cancelled: [],
+      };
+      if (req.status === status) return req;
+      if (!transitions[req.status].includes(status)) return null;
+      if (status === 'Scheduled' && !scheduledDate) return null;
       req.status = status;
       if (scheduledDate) req.scheduledDate = scheduledDate;
+      if (collectionTeam) req.collectionTeam = collectionTeam;
+      if (vehicleNumber) req.vehicleNumber = vehicleNumber;
+      const changedAt = new Date().toISOString();
+      if (!req.statusHistory) req.statusHistory = [];
+      req.statusHistory.push({
+        status,
+        changedAt,
+        changedBy,
+        notes: notes?.trim() || undefined,
+        collectionTeam,
+        vehicleNumber,
+      });
+      this.createNotification({
+        type: 'SCHEDULE',
+        title: `Bulk pickup ${status.toLowerCase()}`,
+        message: `Bulk pickup ${req.trackingNumber || req.id} is now ${status.toLowerCase()}${scheduledDate ? ` for ${scheduledDate}` : ''}.`,
+        barangayId: req.barangayId,
+        barangayName: req.barangayName,
+        targetTab: 'schedule',
+        linkId: req.id,
+      });
       this.save();
       return req;
     }
@@ -1507,14 +1818,14 @@ class DBStore {
     return {
       barangayId,
       barangayName: brgy?.name || 'Barangay',
-      totalBudget: 2500000,
-      fundsAllocatedWaste: 850000,
-      fundsSpent: 620000,
+      totalBudget: null,
+      fundsAllocatedWaste: null,
+      fundsSpent: null,
       reportsTotal: reports.length,
       reportsResolved: resolved,
-      reportsResolutionRate: reports.length > 0 ? Math.round((resolved / reports.length) * 100) : 100,
+      reportsResolutionRate: reports.length > 0 ? Math.round((resolved / reports.length) * 100) : null,
       mrfCount: facilities.filter(f => f.category === 'mrf').length,
-      complianceRateRA9003: 92,
+      complianceRateRA9003: null,
     };
   }
 

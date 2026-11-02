@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { GarbageSchedule } from '../types';
 
 let geminiClient: GoogleGenAI | null = null;
 
@@ -22,6 +23,7 @@ function getGeminiClient(): GoogleGenAI | null {
 export interface PhotoValidationResult {
   isValid: boolean;
   reason: string;
+  reviewRequired: boolean;
   detectedCategory?: 'UNCOLLECTED_GARBAGE' | 'ILLEGAL_DUMPING' | 'CLOGGED_DRAINAGE' | 'OPEN_BURNING' | 'HAZARDOUS_WASTE' | 'RECYCLING' | 'OTHER';
   detectedSeverity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   confidence: number;
@@ -41,12 +43,10 @@ export async function validateReportPhoto(imageData: string, mimeType = 'image/j
   if (!ai) {
     return {
       isValid: true,
-      reason: 'AI verification standby: Photo accepted (API key not configured in environment).',
-      detectedCategory: 'UNCOLLECTED_GARBAGE',
-      detectedSeverity: 'MEDIUM',
-      confidence: 0.85,
-      labels: ['environmental evidence'],
-      suggestedTitle: 'Reported Waste / Environmental Concern',
+      reason: 'AI review is unavailable. The photo has not been assessed and requires an authorized official to verify it.',
+      reviewRequired: true,
+      confidence: 0,
+      labels: [],
     };
   }
 
@@ -127,23 +127,24 @@ Return a JSON object ONLY with the following structure:
     return {
       isValid: Boolean(parsed.isValid),
       reason: parsed.reason || (parsed.isValid ? 'Valid environmental evidence verified.' : 'Image does not show a waste or environmental issue.'),
+      reviewRequired: true,
       detectedCategory: parsed.detectedCategory || 'UNCOLLECTED_GARBAGE',
       detectedSeverity: parsed.detectedSeverity || 'MEDIUM',
-      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9,
+      confidence: typeof parsed.confidence === 'number' && Number.isFinite(parsed.confidence)
+        ? Math.min(1, Math.max(0, parsed.confidence))
+        : 0,
       labels: Array.isArray(parsed.labels) ? parsed.labels : [],
       suggestedTitle: parsed.suggestedTitle || '',
       suggestedDescription: parsed.suggestedDescription || '',
     };
   } catch (error) {
-    console.error('[Gemini AI] Photo validation error:', error);
-    // If error occurs, allow submission with a notice or reject if clearly broken
+    console.error('[Gemini AI] Photo validation failed.');
     return {
       isValid: true,
-      reason: 'AI verification completed with standard checks.',
-      detectedCategory: 'UNCOLLECTED_GARBAGE',
-      detectedSeverity: 'MEDIUM',
-      confidence: 0.7,
-      labels: ['photo evidence'],
+      reason: 'AI review failed. The photo has not been assessed and requires an authorized official to verify it.',
+      reviewRequired: true,
+      confidence: 0,
+      labels: [],
     };
   }
 }
@@ -154,11 +155,9 @@ export interface ChatMessage {
 }
 
 export interface ChatAssistantContext {
-  userName?: string;
-  userRole?: string;
   barangayName?: string;
-  ecoPoints?: number;
   lang?: string;
+  localSchedules?: GarbageSchedule[];
 }
 
 /**
@@ -174,6 +173,15 @@ export async function chatWithEcoAssistant(
 
   if (!ai) {
     const lastUserMsg = messages.filter((m) => m.role === 'user').pop()?.content.toLowerCase() || '';
+    if (lastUserMsg.includes('schedule') || lastUserMsg.includes('collection') || lastUserMsg.includes('pickup')) {
+      if (!context?.localSchedules?.length) {
+        return `I don’t have a published collection schedule for ${context?.barangayName || 'your barangay'} in EcoBarangay. Please confirm with your barangay office.`;
+      }
+      const schedules = context.localSchedules
+        .map(schedule => `• ${schedule.dayOfWeek}, ${schedule.timeSlot}: ${schedule.wasteType}. ${schedule.instructions}`)
+        .join('\n');
+      return `Published collection information for ${context.barangayName || 'your barangay'}:\n${schedules}\nPlease confirm changes with your barangay office.`;
+    }
     if (lastUserMsg.includes('segregat') || lastUserMsg.includes('tapon') || lastUserMsg.includes('hiwalay')) {
       return `Mabuhay! Narito ang tamang paghihiwalay ng basura ayon sa **Republic Act 9003**:
 1. **Nabubulok (Biodegradable / Green)**: Tirang pagkain, balat ng gulay at prutas, tuyong dahon, biodegradable garden waste.
@@ -182,11 +190,7 @@ export async function chatWithEcoAssistant(
 4. **Espesyal / Hazardous (Red/Yellow)**: Baterya, busted fluorescent bulbs, expired medicines, pesticide containers, e-waste.`;
     }
     if (lastUserMsg.includes('points') || lastUserMsg.includes('eco points') || lastUserMsg.includes('puntos')) {
-      return `Maaari kang makakuha at gumamit ng **Eco Points** sa sumusunod:
-• **Pag-report ng environmental hazards** (+25 pts kapag na-verify)
-• **Pag-log ng na-segregate o na-recycle na basura** (+15 pts bawat 5kg)
-• **Pagsali sa Barangay Clean-up Drive o Tree Planting** (+50 pts)
-• **Pag-claim ng Rewards**: Maaaring ipalit sa libreng organic seedlings, eco-tote bags, grocery vouchers, o barangay tax incentives!`;
+      return `Eco Points are credited only for activities verified by an authorized barangay official. Check your activity history for verified awards; ask your barangay office about locally available redemption options.`;
     }
     if (lastUserMsg.includes('ra 9003') || lastUserMsg.includes('republic act')) {
       return `Ang **Republic Act No. 9003** (Ecological Solid Waste Management Act of 2000) ay ang pambansang batas sa Pilipinas na nag-uutos sa systematic, comprehensive, and ecological solid waste management program.
@@ -208,15 +212,15 @@ Maaari mo akong tanungin tungkol sa **kahit anong bagay**—mula sa:
 Ano ang nais mong itanong o pag-usapan ngayon?`;
   }
 
-  const systemInstruction = `You are "EcoBot", a friendly, highly intelligent, and versatile AI Assistant. 
+  const systemInstruction = `You are "EcoBot", a friendly assistant for EcoBarangay.
 You are powered by Google Gemini and live on the EcoBarangay web platform in the Philippines.
 
 YOUR CORE CAPABILITIES & INSTRUCTIONS:
-1. **Answer ANY Question Asked by the User**:
-   - You can answer questions on ANY topic: general knowledge, science, mathematics, coding, history, culture, geography, daily life tips, recipes, health & wellness, government procedures in the Philippines, education, philosophy, technology, literature, and more.
-   - NEVER refuse a user's question simply because it is not about waste management. Be helpful, clear, and engaging for every question.
-
-2. **Specialized Expertise in EcoBarangay & Environmental Stewardship**:
+  1. **Use approved local information for EcoBarangay questions**:
+     - Use only the barangay collection schedules supplied in the current request. Do not invent dates, routes, services, policies, points, or redemption offers.
+     - If local information is missing or uncertain, say so plainly and direct the resident to their barangay office.
+     - Explain that photo assessments are suggestions and require official verification; never represent AI output as proof.
+  2. **Environmental guidance**:
    - Deep knowledge of Philippine Solid Waste Management (Republic Act 9003 - Ecological Solid Waste Management Act of 2000).
    - 4-Stream Waste Segregation:
      * Biodegradable / Nabubulok (Green): food leftovers, vegetable/fruit scraps, leaves, garden clippings.
@@ -236,12 +240,15 @@ YOUR CORE CAPABILITIES & INSTRUCTIONS:
    - Use clean Markdown formatting: bold highlights, bullet points, numbered steps, code blocks (if requested), and organized paragraphs.
    - Keep answers concise yet thorough and actionable.
 
-CURRENT USER CONTEXT:
-- Resident Name: ${context?.userName || 'Resident'}
-- Role: ${context?.userRole || 'RESIDENT'}
+CURRENT COMMUNITY CONTEXT:
 - Active Barangay: ${context?.barangayName ? 'Brgy. ' + context.barangayName : 'Community'}
-- Eco Points Balance: ${context?.ecoPoints ?? 0} pts
 - Preferred UI Language: ${context?.lang || 'en'}`;
+
+  const scheduleContext = context?.localSchedules?.length
+    ? `\n\nPUBLISHED COLLECTION SCHEDULES FOR THIS BARANGAY:\n${context.localSchedules
+        .map(schedule => `${schedule.dayOfWeek} ${schedule.timeSlot}: ${schedule.wasteType}. ${schedule.instructions}`)
+        .join('\n')}`
+    : '\n\nNo local collection schedules are available. Do not guess them; direct schedule questions to the barangay office.';
 
   try {
     const formattedContents = messages.map((m) => ({
@@ -253,13 +260,13 @@ CURRENT USER CONTEXT:
       model: 'gemini-3.7-flash',
       contents: formattedContents,
       config: {
-        systemInstruction,
+        systemInstruction: `${systemInstruction}${scheduleContext}`,
       },
     });
 
     return response.text || 'I am here and ready to answer any questions you have!';
   } catch (error) {
-    console.error('[Gemini AI] Chat error:', error);
+    console.error('[Gemini AI] Chat request failed.');
     return 'Paumanhin, nagkaroon ng pansamantalang aberya sa AI Assistant. Maaari mo bang ulitin ang iyong tanong?';
   }
 }
