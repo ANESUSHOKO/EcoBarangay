@@ -116,7 +116,7 @@ export const EventsChallengesPage: React.FC<EventsChallengesPageProps> = ({
 
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-500">
-                    👥 {evt.registeredUserIds.length} / {evt.maxParticipants} Registered
+                    👥 {evt.registeredCount ?? evt.registeredUserIds.length} / {evt.maxParticipants} Registered
                   </span>
 
                   <button
@@ -159,7 +159,7 @@ export const EventsChallengesPage: React.FC<EventsChallengesPageProps> = ({
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-500">
-                    🏆 {chl.completedUserIds.length} Resident Submissions
+                    🏆 {chl.submissionCount ?? chl.completedUserIds.length} Resident Submissions
                   </span>
 
                   {isCompleted ? (

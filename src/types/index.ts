@@ -89,6 +89,25 @@ export interface Barangay {
   garbageScheduleDays: string[];
 }
 
+export interface RankingHistoryEntry {
+  barangayId: string;
+  barangayName: string;
+  cityName: string;
+  provinceName: string;
+  nationalRank: number;
+  population: number;
+  score: SustainabilityScore;
+  dataStatus: 'Recorded; not independently verified';
+}
+
+export interface RankingSnapshot {
+  id: string;
+  snapshotDate: string;
+  generatedAt: string;
+  reportingPeriod: { start: string; end: string };
+  entries: RankingHistoryEntry[];
+}
+
 export type FacilityCategory = 'recycling' | 'mrf' | 'junkshop' | 'ewaste' | 'composting';
 
 export interface Facility {
@@ -210,6 +229,7 @@ export interface Event {
   category: 'Cleanup' | 'Tree Planting' | 'Workshop' | 'Recycling Drive';
   pointsAwarded: number;
   registeredUserIds: string[];
+  registeredCount?: number;
   maxParticipants: number;
   lat?: number;
   lng?: number;
@@ -225,6 +245,8 @@ export interface Challenge {
   icon: string;
   joinedUserIds: string[];
   completedUserIds: string[];
+  joinedCount?: number;
+  submissionCount?: number;
 }
 
 export interface GarbageSchedule {

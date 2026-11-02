@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { dbStore } from './src/server/dbStore';
+import { challengeView, eventView } from './src/server/publicViews';
 import {
   verifyPassword,
 } from './src/server/authSecurity';
@@ -78,6 +79,7 @@ async function startServer() {
     /^\/api\/locations\/(regions|provinces|cities|barangays)$/,
     /^\/api\/locations\/detect-nearest$/,
     /^\/api\/rankings$/,
+    /^\/api\/rankings\/[^/]+\/history$/,
     /^\/api\/facilities$/,
     /^\/api\/events$/,
     /^\/api\/challenges$/,
@@ -110,7 +112,8 @@ async function startServer() {
     if (!req.path.startsWith('/api/')) return next();
     if (req.path === '/api/health') return next();
     if (req.path === '/api/auth/legacy-migration-check' && req.method === 'POST') return next();
-    if (req.method === 'GET' && publicReadRoutes.some(route => route.test(req.path))) return next();
+    if (req.method === 'GET' && !req.headers.authorization &&
+        publicReadRoutes.some(route => route.test(req.path))) return next();
     if (req.path === '/api/locations/detect-nearest' && req.method === 'POST') return next();
 
     const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
@@ -377,10 +380,40 @@ async function startServer() {
       'householdAddress',
       'householdSegregationType',
     ] as const;
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    if (Object.keys(body).some(field => !allowedFields.includes(field as typeof allowedFields[number]))) {
+      return res.status(400).json({ error: 'The profile update contains unsupported fields.' });
+    }
+    const stringLimits: Partial<Record<typeof allowedFields[number], { min: number; max: number }>> = {
+      fullName: { min: 2, max: 80 },
+      phone: { min: 0, max: 32 },
+      avatarUrl: { min: 0, max: 2_048 },
+      photoUrl: { min: 0, max: 2_048 },
+      householdHeadName: { min: 0, max: 80 },
+      householdAddress: { min: 0, max: 200 },
+      householdSegregationType: { min: 0, max: 80 },
+    };
+    for (const [field, value] of Object.entries(body)) {
+      if (field === 'householdMembersCount') {
+        if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 30) {
+          return res.status(400).json({ error: 'Household member count must be between 1 and 30.' });
+        }
+        continue;
+      }
+      const limits = stringLimits[field as keyof typeof stringLimits];
+      if (typeof value !== 'string' || !limits || value.trim().length < limits.min || value.length > limits.max) {
+        return res.status(400).json({ error: `Invalid value for profile field "${field}".` });
+      }
+      if (['avatarUrl', 'photoUrl'].includes(field) && value.trim()) {
+        try {
+          if (new URL(value).protocol !== 'https:') throw new Error();
+        } catch {
+          return res.status(400).json({ error: 'Profile image must be a valid HTTPS URL.' });
+        }
+      }
+    }
     const updates = Object.fromEntries(
-      allowedFields
-        .filter(field => typeof req.body?.[field] === 'string' || field === 'householdMembersCount' && Number.isInteger(req.body?.[field]))
-        .map(field => [field, req.body[field]])
+      Object.entries(body).map(([field, value]) => [field, typeof value === 'string' ? value.trim() : value])
     );
     const updated = dbStore.updateUser(userId, updates);
     if (!updated) return res.status(404).json({ error: 'User not found' });
@@ -391,15 +424,26 @@ async function startServer() {
   // Auth: Register household details
   app.post('/api/auth/user/:id/household', (req, res) => {
     const userId = req.params.id;
-    const { householdHeadName, householdMembersCount, householdAddress, householdSegregationType } = req.body;
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const allowedFields = ['householdHeadName', 'householdMembersCount', 'householdAddress', 'householdSegregationType'];
+    if (
+      Object.keys(body).some(field => !allowedFields.includes(field)) ||
+      typeof body.householdHeadName !== 'string' || body.householdHeadName.trim().length < 2 || body.householdHeadName.length > 80 ||
+      !Number.isInteger(body.householdMembersCount) || body.householdMembersCount < 1 || body.householdMembersCount > 30 ||
+      typeof body.householdAddress !== 'string' || body.householdAddress.trim().length < 3 || body.householdAddress.length > 200 ||
+      typeof body.householdSegregationType !== 'string' || body.householdSegregationType.trim().length < 2 || body.householdSegregationType.length > 80
+    ) {
+      return res.status(400).json({ error: 'Provide a valid household head, member count, address, and segregation setup.' });
+    }
+    const { householdHeadName, householdMembersCount, householdAddress, householdSegregationType } = body;
     const user = dbStore.getUserById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const updated = dbStore.updateUser(userId, {
       householdHeadName,
-      householdMembersCount: Number(householdMembersCount) || 1,
-      householdAddress,
-      householdSegregationType: householdSegregationType || '3-Bin Segregation System',
+      householdMembersCount,
+      householdAddress: householdAddress.trim(),
+      householdSegregationType: householdSegregationType.trim(),
       householdRegistered: true,
     });
 
@@ -499,6 +543,7 @@ async function startServer() {
 
   // Rankings Leaderboard
   app.get('/api/rankings', (req, res) => {
+    dbStore.captureDailyRankingSnapshotIfDue();
     const { regionCode, provinceCode, cityCode, tier, search } = req.query;
     let list = dbStore.getBarangays();
 
@@ -520,6 +565,11 @@ async function startServer() {
     // Sort by national rank / total score
     list.sort((a, b) => b.score.totalScore - a.score.totalScore);
     res.json(list);
+  });
+
+  app.get('/api/rankings/:barangayId/history', (req, res) => {
+    dbStore.captureDailyRankingSnapshotIfDue();
+    res.json(dbStore.getRankingHistory(req.params.barangayId));
   });
 
   // --- AI & INTELLIGENCE ROUTES ---
@@ -872,7 +922,8 @@ async function startServer() {
   // Events
   app.get('/api/events', (req, res) => {
     const { barangayId } = req.query;
-    res.json(dbStore.getEvents(barangayId as string));
+    const userId = (req as AuthenticatedRequest).appUser?.id;
+    res.json(dbStore.getEvents(barangayId as string).map(event => eventView(event, userId)));
   });
 
   app.post('/api/events', (req, res) => {
@@ -885,26 +936,29 @@ async function startServer() {
     if (!user) return res.status(401).json({ error: 'Authentication is required.' });
     const updated = dbStore.joinEvent(req.params.id, user.id);
     if (!updated) return res.status(404).json({ error: 'Event not found' });
-    res.json(updated);
+    res.json(eventView(updated, user.id));
   });
 
   // Challenges
   app.get('/api/challenges', (req, res) => {
-    res.json(dbStore.getChallenges());
+    const userId = (req as AuthenticatedRequest).appUser?.id;
+    res.json(dbStore.getChallenges().map(challenge => challengeView(challenge, userId)));
   });
 
   app.post('/api/challenges/:id/join', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
     if (!user) return res.status(401).json({ error: 'Authentication is required.' });
     const updated = dbStore.joinChallenge(req.params.id, user.id);
-    res.json(updated);
+    if (!updated) return res.status(404).json({ error: 'Challenge not found.' });
+    res.json(challengeView(updated, user.id));
   });
 
   app.post('/api/challenges/:id/complete', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
     if (!user) return res.status(401).json({ error: 'Authentication is required.' });
     const updated = dbStore.completeChallenge(req.params.id, user.id);
-    res.json(updated);
+    if (!updated) return res.status(404).json({ error: 'Challenge not found.' });
+    res.json(challengeView(updated, user.id));
   });
 
   // Garbage Collection Schedules

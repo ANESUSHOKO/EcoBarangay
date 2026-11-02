@@ -26,6 +26,7 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
   const t = (key: any) => getTranslation(lang as Language, key);
   const [category, setCategory] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
+  const [mapView, setMapView] = useState<'map' | 'list'>('map');
 
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [reports, setReports] = useState<EnvironmentalReport[]>([]);
@@ -67,6 +68,15 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
       f.name.toLowerCase().includes(search.toLowerCase()) ||
       f.address.toLowerCase().includes(search.toLowerCase()) ||
       f.acceptedMaterials.some(m => m.toLowerCase().includes(search.toLowerCase()))
+  );
+  const searchTerm = search.trim().toLowerCase();
+  const filteredReports = reports.filter(report =>
+    [report.category, report.description, report.locationAddress]
+      .some(value => value.toLowerCase().includes(searchTerm))
+  );
+  const filteredEvents = events.filter(event =>
+    [event.title, event.description, event.location]
+      .some(value => value.toLowerCase().includes(searchTerm))
   );
 
   const handleAddFacilitySubmit = async (e: React.FormEvent) => {
@@ -125,6 +135,25 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
         )}
       </div>
 
+      <div className="flex items-center gap-2" role="group" aria-label="Map display mode">
+        <button
+          type="button"
+          onClick={() => setMapView('map')}
+          aria-pressed={mapView === 'map'}
+          className={`rounded-xl px-4 py-2 text-xs font-bold ${mapView === 'map' ? 'bg-emerald-700 text-white' : 'bg-white text-slate-700 border border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'}`}
+        >
+          Interactive map
+        </button>
+        <button
+          type="button"
+          onClick={() => setMapView('list')}
+          aria-pressed={mapView === 'list'}
+          className={`rounded-xl px-4 py-2 text-xs font-bold ${mapView === 'list' ? 'bg-emerald-700 text-white' : 'bg-white text-slate-700 border border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'}`}
+        >
+          Accessible list
+        </button>
+      </div>
+
       {/* Category Pills Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         {[
@@ -151,6 +180,7 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
       </div>
 
       {/* Main Grid: Map + List */}
+      {mapView === 'map' ? (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Side: Interactive Leaflet Map */}
         <div className="lg:col-span-8 space-y-4">
@@ -165,7 +195,6 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
               onFacilityClick={setSelectedFacility}
             />
           </div>
-
           {/* Selected Facility Detail Card */}
           {selectedFacility && (
             <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-3xl border border-emerald-300 dark:border-emerald-700 shadow-lg space-y-3 animate-in fade-in duration-200">
@@ -255,6 +284,60 @@ export const EcoMapPage: React.FC<EcoMapPageProps> = ({ currentBarangay, current
           </div>
         </div>
       </div>
+      ) : (
+        <section aria-label="Accessible map directory" className="space-y-5">
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Search locations, reports, and events
+            <input
+              type="search"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            />
+          </label>
+          <section aria-labelledby="map-facilities-heading" className="space-y-2">
+            <h2 id="map-facilities-heading" className="text-sm font-bold text-slate-900 dark:text-white">Facilities ({filteredFacilities.length})</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              {filteredFacilities.map(facility => (
+                <article key={facility.id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="font-bold text-slate-900 dark:text-white">{facility.name}</h3>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{facility.address}, {facility.barangayName}</p>
+                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">Map pin accuracy has not been independently confirmed; use the address and confirm before travel.</p>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{facility.openingHours} · {facility.acceptedMaterials.join(', ')}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section aria-labelledby="map-reports-heading" className="space-y-2">
+            <h2 id="map-reports-heading" className="text-sm font-bold text-slate-900 dark:text-white">Environmental reports ({filteredReports.length})</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              {filteredReports.map(report => (
+                <article key={report.id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="font-bold text-slate-900 dark:text-white">{report.category} · {report.status}</h3>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{report.locationAddress}</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{report.description}</p>
+                  <p className="mt-2 text-[11px] text-slate-500">Resident-submitted location; details have not necessarily been independently confirmed.</p>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section aria-labelledby="map-events-heading" className="space-y-2">
+            <h2 id="map-events-heading" className="text-sm font-bold text-slate-900 dark:text-white">Community events ({filteredEvents.length})</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              {filteredEvents.map(event => (
+                <article key={event.id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="font-bold text-slate-900 dark:text-white">{event.title}</h3>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{event.date} · {event.time} · {event.location}</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{event.description}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+          {filteredFacilities.length + filteredReports.length + filteredEvents.length === 0 && (
+            <p className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">No locations, reports, or events match this search.</p>
+          )}
+        </section>
+      )}
 
       {/* Add Facility Modal */}
       {showAddModal && (

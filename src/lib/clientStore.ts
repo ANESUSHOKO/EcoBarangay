@@ -32,6 +32,7 @@ import {
   BarangayImprovement,
   PersonalCalendarEvent
 } from '../types';
+import { getReportResolutionMetrics } from './reportTransparency';
 import {
   INITIAL_REGIONS,
   INITIAL_PROVINCES,
@@ -167,16 +168,13 @@ class ClientStore {
 
   // Stats
   public getStatsSummary() {
-    const registeredResidents = this.users.length;
-    const participatingBarangays = this.barangays.length;
-
-    let wasteRecycledKg = 0;
-    this.feedPosts.forEach(post => {
-      if (post.wasteKg) wasteRecycledKg += post.wasteKg;
-    });
-    this.users.forEach(u => {
-      if (u.kgRecycled) wasteRecycledKg += u.kgRecycled;
-    });
+    const residents = this.users.filter(user => user.role === 'RESIDENT');
+    const registeredResidents = residents.length;
+    const participatingBarangays = new Set(residents.map(user => user.barangayId)).size;
+    const verifiedRecyclingLogs = this.activityLogs.filter(log =>
+      log.type === 'Recycling' && log.verificationStatus === 'Verified'
+    );
+    const wasteRecycledKg = verifiedRecyclingLogs.reduce((total, log) => total + (log.kgRecycled || 0), 0);
 
     const cleanupActivities = this.events.filter(e => e.category === 'Cleanup').length;
     const reportsResolved = this.reports.filter(r => r.status === 'Resolved').length;
@@ -184,7 +182,7 @@ class ClientStore {
     return {
       registeredResidents,
       participatingBarangays,
-      wasteRecycledKg: Math.round(wasteRecycledKg * 10) / 10,
+      wasteRecycledKg: verifiedRecyclingLogs.length ? Math.round(wasteRecycledKg * 10) / 10 : null,
       cleanupActivities,
       reportsResolved
     };
@@ -936,47 +934,22 @@ class ClientStore {
   // ==================== 5. TRANSPARENCY CENTER DATA ====================
   public getTransparencyMetrics(barangayId: string) {
     const brgyReports = this.reports.filter(r => r.barangayId === barangayId);
-    const reportsReceived = brgyReports.length;
-    const reportsResolved = brgyReports.filter(r => r.status === 'Resolved').length;
-    const pendingReports = brgyReports.filter(r => r.status === 'Pending' || r.status === 'In Progress').length;
-    
-    const brgyUsers = this.users.filter(u => u.barangayId === barangayId);
-    const activeResidents = brgyUsers.length;
-
-    let wasteRecycled = 0;
-    brgyUsers.forEach(u => wasteRecycled += (u.kgRecycled || 0));
-
-    const brgyEvents = this.events.filter(e => e.barangayId === barangayId);
-    const cleanupActivities = brgyEvents.filter(e => e.category === 'Cleanup').length;
-
-    const brgyProjects = this.projects.filter(p => p.barangayId === barangayId);
-    const projectsCount = brgyProjects.length;
-    const completedProjects = brgyProjects.filter(p => p.status === 'Completed').length;
-
-    const barangayObj = this.barangays.find(b => b.id === barangayId) || this.barangays[0];
+    const resolved = brgyReports.filter(report => report.status === 'Resolved').length;
+    const facilities = this.facilities.filter(facility => facility.barangayId === barangayId);
+    const barangay = this.barangays.find(item => item.id === barangayId);
 
     return {
-      barangayName: barangayObj.name,
-      cityName: barangayObj.cityName,
-      sustainabilityScore: barangayObj.score.totalScore,
-      tier: barangayObj.score.tier,
-      reportsReceived,
-      reportsResolved,
-      pendingReports,
-      avgResolutionTimeDays: 1.8,
-      wasteRecycledKg: wasteRecycled || 18700,
-      wasteDivertedPct: 68.5,
-      activeResidents: activeResidents || 1240,
-      communityParticipationPct: 84.2,
-      cleanupActivities,
-      environmentalProjects: projectsCount,
-      completedProjects,
-      rankingHistory: [
-        { month: 'May', score: 82.1, rank: 4 },
-        { month: 'Jun', score: 85.0, rank: 3 },
-        { month: 'Jul', score: 87.8, rank: 2 },
-        { month: 'Aug', score: barangayObj.score.totalScore, rank: 1 },
-      ],
+      ...getReportResolutionMetrics(brgyReports),
+      barangayId,
+      barangayName: barangay?.name || 'Barangay',
+      totalBudget: null,
+      fundsAllocatedWaste: null,
+      fundsSpent: null,
+      reportsTotal: brgyReports.length,
+      reportsResolved: resolved,
+      reportsResolutionRate: brgyReports.length ? Math.round((resolved / brgyReports.length) * 100) : null,
+      mrfCount: facilities.filter(facility => facility.category === 'mrf').length,
+      complianceRateRA9003: null,
     };
   }
 

@@ -3,20 +3,13 @@ import { api } from '../../lib/api';
 import { User, Barangay, Facility, PartnerOrganization } from '../../types';
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend
+  Tooltip
 } from 'recharts';
 import {
   ShieldAlert,
@@ -45,7 +38,6 @@ import {
   CheckCircle,
   AlertTriangle,
   Clock,
-  Sparkles,
   RefreshCw
 } from 'lucide-react';
 
@@ -72,7 +64,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
 
   // Timeframe selector for analytics
-  const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | 'ytd'>('30d');
 
   // New Barangay Modal State
   const [showAddBarangayModal, setShowAddBarangayModal] = useState(false);
@@ -119,6 +110,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
   const totalRecycledKg = useMemo(() => {
     return barangays.reduce((acc, b) => acc + (b.totalRecycledKg || 0), 0);
   }, [barangays]);
+  const registeredResidents = users.filter(user => user.role === 'RESIDENT').length;
+  const mrfAndHubCount = facilities.filter(facility => ['mrf', 'recycling', 'junkshop', 'ewaste', 'composting'].includes(facility.category)).length;
 
   const tierDistribution = useMemo(() => {
     const counts = { Platinum: 0, Gold: 0, Silver: 0, Bronze: 0, Developing: 0 };
@@ -138,69 +131,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
       { name: 'Developing', count: counts.Developing, fill: '#6366f1' },
     ];
   }, [barangays]);
-
-  // Analytics Dynamic Timeline Data based on timeframe
-  const engagementTimeline = useMemo(() => {
-    if (timeframe === '7d') {
-      return [
-        { label: 'Mon', activeResidents: 1420, officialVerifications: 380, wasteLoggedKg: 4200, reportsResolved: 45 },
-        { label: 'Tue', activeResidents: 1680, officialVerifications: 410, wasteLoggedKg: 4900, reportsResolved: 52 },
-        { label: 'Wed', activeResidents: 1850, officialVerifications: 490, wasteLoggedKg: 5350, reportsResolved: 61 },
-        { label: 'Thu', activeResidents: 2100, officialVerifications: 530, wasteLoggedKg: 6100, reportsResolved: 74 },
-        { label: 'Fri', activeResidents: 2450, officialVerifications: 620, wasteLoggedKg: 7400, reportsResolved: 88 },
-        { label: 'Sat (Cleanup)', activeResidents: 3620, officialVerifications: 890, wasteLoggedKg: 11200, reportsResolved: 120 },
-        { label: 'Sun', activeResidents: 2890, officialVerifications: 670, wasteLoggedKg: 8900, reportsResolved: 95 },
-      ];
-    }
-    if (timeframe === '30d') {
-      return [
-        { label: 'Week 1', activeResidents: 9400, officialVerifications: 2200, wasteLoggedKg: 28400, reportsResolved: 320 },
-        { label: 'Week 2', activeResidents: 11200, officialVerifications: 2750, wasteLoggedKg: 34100, reportsResolved: 390 },
-        { label: 'Week 3', activeResidents: 13800, officialVerifications: 3400, wasteLoggedKg: 41500, reportsResolved: 460 },
-        { label: 'Week 4', activeResidents: 16500, officialVerifications: 4120, wasteLoggedKg: 52300, reportsResolved: 580 },
-      ];
-    }
-    if (timeframe === '90d') {
-      return [
-        { label: 'Month 1', activeResidents: 32000, officialVerifications: 8100, wasteLoggedKg: 98000, reportsResolved: 1120 },
-        { label: 'Month 2', activeResidents: 46500, officialVerifications: 11800, wasteLoggedKg: 142000, reportsResolved: 1640 },
-        { label: 'Month 3', activeResidents: 64200, officialVerifications: 16400, wasteLoggedKg: 198500, reportsResolved: 2310 },
-      ];
-    }
-    return [
-      { label: 'Q1', activeResidents: 85000, officialVerifications: 21000, wasteLoggedKg: 260000, reportsResolved: 3200 },
-      { label: 'Q2', activeResidents: 124000, officialVerifications: 31500, wasteLoggedKg: 380000, reportsResolved: 4800 },
-      { label: 'Q3', activeResidents: 178000, officialVerifications: 45000, wasteLoggedKg: 540000, reportsResolved: 6900 },
-      { label: 'Q4 (Est.)', activeResidents: 235000, officialVerifications: 59000, wasteLoggedKg: 710000, reportsResolved: 9100 },
-    ];
-  }, [timeframe]);
-
-  // Waste categories breakdown (National RA 9003 composition)
-  const wasteStreamBreakdown = useMemo(() => [
-    { name: 'Plastics & PET Bottles', value: 38, tons: 145.2, fill: '#059669' },
-    { name: 'Paper & Cardboard', value: 26, tons: 99.4, fill: '#0284c7' },
-    { name: 'Organic / Compost', value: 18, tons: 68.8, fill: '#16a34a' },
-    { name: 'Glass & Metals', value: 12, tons: 45.9, fill: '#d97706' },
-    { name: 'Special / E-Waste', value: 6, tons: 22.9, fill: '#8b5cf6' },
-  ], []);
-
-  // Regional Governance Compliance & SLA Response hours
-  const regionalPerformance = useMemo(() => [
-    { region: 'NCR (Metro Manila)', complianceRate: 92, avgResolutionHours: 18.5, activeMRFs: 48 },
-    { region: 'Region IV-A (CALABARZON)', complianceRate: 86, avgResolutionHours: 24.2, activeMRFs: 34 },
-    { region: 'Region III (Central Luzon)', complianceRate: 84, avgResolutionHours: 26.8, activeMRFs: 29 },
-    { region: 'Region VII (Central Visayas)', complianceRate: 81, avgResolutionHours: 29.4, activeMRFs: 22 },
-    { region: 'Region XI (Davao Region)', complianceRate: 88, avgResolutionHours: 21.0, activeMRFs: 26 },
-  ], []);
-
-  // User engagement breakdown by module
-  const featureEngagement = useMemo(() => [
-    { module: 'Recycling Logs', percentage: 42, color: '#059669' },
-    { module: 'Dumping Reports', percentage: 24, color: '#e11d48' },
-    { module: 'Community Cleanups', percentage: 18, color: '#2563eb' },
-    { module: 'Collection Schedules', percentage: 10, color: '#d97706' },
-    { module: 'Eco Rewards & Badges', percentage: 6, color: '#9333ea' },
-  ], []);
 
   const handleCreateInstitutionalOrg = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -368,7 +298,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
       {/* ========================================================================= */}
       {activeTab === 'analytics' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Top Control Bar with Timeframe Toggle & Status */}
+          {/* Dashboard heading and refresh control */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -376,40 +306,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                   <Activity className="w-4 h-4" />
                 </span>
                 <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  National Engagement & Environmental Governance Intelligence
+                  Administration Overview
                 </h3>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Real-time telemetric activity, citizen waste diversion metrics, and RA 9003 institutional audit data.
+                Current registered accounts, facility listings, and recorded recycling totals.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider hidden md:inline">
-                Period:
-              </span>
-              <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                {(['7d', '30d', '90d', 'ytd'] as const).map(tf => (
-                  <button
-                    key={tf}
-                    onClick={() => setTimeframe(tf)}
-                    className={`px-3 py-1 text-xs font-black rounded-lg transition-all ${
-                      timeframe === tf
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {tf === '7d' ? '7 Days' : tf === '30d' ? '30 Days' : tf === '90d' ? '90 Days' : 'YTD'}
-                  </button>
-                ))}
-              </div>
               <button
                 onClick={() => {
                   loadAllData();
-                  notifySuccess('Governance intelligence telemetry refreshed.');
                 }}
                 className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all"
-                title="Refresh Metrics"
+                title="Refresh dashboard data"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
@@ -420,34 +331,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Total Diversion</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Recorded Recycling Total</span>
                 <span className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
                   <TrendingUp className="w-4 h-4" />
                 </span>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-black text-slate-900 dark:text-white">
-                  {(totalRecycledKg || 38240).toLocaleString()} <span className="text-sm font-bold text-slate-500">kg</span>
+                  {totalRecycledKg ? totalRecycledKg.toLocaleString() : 'Not reported'} {totalRecycledKg ? <span className="text-sm font-bold text-slate-500">kg</span> : null}
                 </div>
-                <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-                  <span>+18.4%</span> vs prior cycle • RA 9003 Compliance
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Recorded values; verification and reporting coverage vary.
                 </div>
               </div>
             </div>
 
             <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Citizen Participation</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Registered Residents</span>
                 <span className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400">
                   <Users className="w-4 h-4" />
                 </span>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-black text-slate-900 dark:text-white">
-                  {users.length * 142 || 4820} <span className="text-sm font-bold text-slate-500">active/mo</span>
+                  {registeredResidents.toLocaleString()} <span className="text-sm font-bold text-slate-500">accounts</span>
                 </div>
-                <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">
-                  84.2% Monthly Retentive Action Rate
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Monthly active participation is not currently measured.
                 </div>
               </div>
             </div>
@@ -461,27 +372,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-black text-slate-900 dark:text-white">
-                  21.8 <span className="text-sm font-bold text-slate-500">hours</span>
+                  Not reported
                 </div>
-                <div className="text-[11px] font-bold text-amber-600 dark:text-amber-400 mt-1">
-                  94.1% resolved under 48h benchmark
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  No response-time target or complete measurement period is configured.
                 </div>
               </div>
             </div>
 
             <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Accredited Nodes</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Listed Facilities & Hubs</span>
                 <span className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400">
                   <Building2 className="w-4 h-4" />
                 </span>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-black text-slate-900 dark:text-white">
-                  {facilities.length || 14} <span className="text-sm font-bold text-slate-500">MRFs & Hubs</span>
+                  {mrfAndHubCount} <span className="text-sm font-bold text-slate-500">MRFs & Hubs</span>
                 </div>
                 <div className="text-[11px] font-bold text-purple-600 dark:text-purple-400 mt-1">
-                  {organizations.length} Institutional Partners active
+                  {organizations.length} registered institutional partners
                 </div>
               </div>
             </div>
@@ -489,71 +400,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
 
           {/* Primary Recharts Visualization: Platform Engagement & Activity Volume */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Chart 1: Active Citizens vs Official Verification Actions (AreaChart) */}
+            {/* Chart 1: Historical activity metrics */}
             <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div>
                   <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    National Platform Activity: Citizens vs Official Audits
+                    Platform Activity
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Comparing citizen participations and official barangay verifications.
+                    Historical participation and verification data is not available.
                   </p>
                 </div>
-                <span className="text-[10px] font-black px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                  Live Sync
-                </span>
               </div>
 
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={engagementTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorResidents" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#059669" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
-                      </linearGradient>
-                      <linearGradient id="colorOfficials" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#d97706" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#d97706" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.2} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #334155',
-                        borderRadius: '12px',
-                        color: '#f8fafc',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                      }}
-                      itemStyle={{ color: '#f8fafc' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                    <Area
-                      type="monotone"
-                      dataKey="activeResidents"
-                      name="Active Residents"
-                      stroke="#059669"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#colorResidents)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="officialVerifications"
-                      name="Official Verifications"
-                      stroke="#d97706"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#colorOfficials)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="h-72 w-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                No time-series activity data is available for this period.
               </div>
             </div>
 
@@ -565,55 +427,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                   Waste Stream Segregation Share
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  National materials diversion by composition % (RA 9003).
+                  Waste composition has not been reported.
                 </p>
               </div>
 
-              <div className="h-56 w-full relative flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={wasteStreamBreakdown}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {wasteStreamBreakdown.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} stroke="transparent" />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(val, name, item) => [`${val}% (${(item.payload as any).tons} Metric Tons)`, name]}
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #334155',
-                        borderRadius: '12px',
-                        color: '#f8fafc',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-xl font-black text-slate-900 dark:text-white">100%</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">Audited</span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
-                {wasteStreamBreakdown.map(item => (
-                  <div key={item.name} className="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
-                      <span className="truncate">{item.name}</span>
-                    </div>
-                    <span className="font-bold text-slate-900 dark:text-white">{item.value}%</span>
-                  </div>
-                ))}
+              <div className="h-56 w-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                No verified composition data is available.
               </div>
             </div>
           </div>
@@ -626,38 +445,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                 <div>
                   <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    Waste Diversion Volume (Kg Diverted from Landfills)
+                    Verified Waste Diversion by Period
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Calculated from verified citizen drop-offs and MRF logbooks.
+                    Verified recycling weights by reporting period are not available.
                   </p>
                 </div>
-                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                  Target: 85% Diversion
-                </span>
               </div>
 
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={engagementTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.2} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      formatter={(val) => [`${Number(val).toLocaleString()} kg`, 'Diversion']}
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #334155',
-                        borderRadius: '12px',
-                        color: '#f8fafc',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                    <Bar dataKey="wasteLoggedKg" name="Kg Diverted" fill="#059669" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="h-64 w-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                No verified time-series waste data is available.
               </div>
             </div>
 
@@ -669,7 +466,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                   Barangay Tier Classification
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  National score distribution across {barangays.length} jurisdictions.
+                  Current recorded score distribution across {barangays.length} barangays. Scores are not independently audited.
                 </p>
               </div>
 
@@ -704,49 +501,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
             </div>
           </div>
 
-          {/* Tertiary Governance Grid: Regional SLA Performance & Feature Adoption */}
+          {/* Tertiary Governance Grid: unavailable analytics */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Regional SLA Matrix */}
+            {/* Regional performance */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div>
                   <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <Globe2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    Regional Governance Compliance & Incident SLA
+                    Regional Performance
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Response time metrics on illegal dumping resolution by cluster.
+                    Regional compliance and incident response metrics are not reported.
                   </p>
                 </div>
-                <span className="text-[10px] uppercase font-black text-slate-400">Benchmarked</span>
               </div>
 
-              <div className="space-y-3">
-                {regionalPerformance.map(reg => (
-                  <div
-                    key={reg.region}
-                    className="p-3.5 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                  >
-                    <div>
-                      <div className="text-xs font-black text-slate-900 dark:text-white">{reg.region}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {reg.activeMRFs} Materials Recovery Hubs • Avg {reg.avgResolutionHours}h Resolution SLA
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="w-28 bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                        <div
-                          className="bg-emerald-600 h-full rounded-full"
-                          style={{ width: `${reg.complianceRate}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 min-w-[40px] text-right">
-                        {reg.complianceRate}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                No regional compliance dataset is available.
               </div>
             </div>
 
@@ -756,39 +528,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                 <div>
                   <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <Sliders className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    Platform Module Engagement Mix
+                    Platform Module Engagement
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Distribution of actions performed across web and mobile citizen portals.
+                    Feature usage is not currently measured.
                   </p>
                 </div>
-                <span className="text-[10px] uppercase font-black text-emerald-600">Active</span>
               </div>
 
-              <div className="space-y-3">
-                {featureEngagement.map(feat => (
-                  <div key={feat.module} className="space-y-1">
-                    <div className="flex justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
-                      <span>{feat.module}</span>
-                      <span className="font-black" style={{ color: feat.color }}>
-                        {feat.percentage}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${feat.percentage}%`, backgroundColor: feat.color }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
-                <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <p>
-                  <strong>Governance Recommendation:</strong> Community Cleanups and Waste Logging have increased by 22% this cycle. Consider activating seasonal multiplier rewards for Organic / Compost drop-offs.
-                </p>
+              <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                No feature usage data is available.
               </div>
             </div>
           </div>
@@ -965,7 +714,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">National Recovery Facilities & MRF Network</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Audited Materials Recovery Facilities, Junkshops, and Hazardous Waste Drop-off hubs.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Listed Materials Recovery Facilities, junkshops, and hazardous waste drop-off hubs.</p>
             </div>
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl">
               Total Managed Facilities: {facilities.length}
@@ -1044,7 +793,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                         Brgy. {b.name}, {b.cityName}
                       </div>
                       <div className="text-xs text-slate-500 dark:text-slate-400">
-                        Tier: {b.score.tier} • {b.totalUsers || 100} Active Citizens
+                        Tier: {b.score.tier} • {b.totalUsers ?? 'Not reported'} residents
                       </div>
                     </div>
                   </div>
@@ -1179,7 +928,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                 </div>
                 <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                   <span>Scope: {org.scope || 'National'}</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{org.activeProjectsCount || 1} Active Projects</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{org.activeProjectsCount ?? 0} Active Projects</span>
                 </div>
               </div>
             ))}
