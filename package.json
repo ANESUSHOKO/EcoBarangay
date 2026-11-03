@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
+    "dev:firebase": "VITE_USE_FIREBASE_EMULATORS=false FIREBASE_DATA_MODE=production tsx server.ts",
     "dev:emulator": "VITE_USE_FIREBASE_EMULATORS=true npx --yes firebase-tools@15.34.2 emulators:exec --project demo-ecobarangay --only auth,firestore \"npm run dev\"",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",

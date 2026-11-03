@@ -23,6 +23,16 @@ SYSTEM_ADMIN_EMAIL="your-local-admin-email" npm run dev:emulator
 
 The Firebase CLI and emulator binaries are downloaded on first run. The app is served at `http://localhost:3000`, and the local Emulator UI is at `http://127.0.0.1:4000`. Register and sign in directly with your email and a unique local password; the matching `SYSTEM_ADMIN_EMAIL` is automatically allowed to use the **Admin** portal in the local emulator. Local emulator users and data are separate from production and are discarded when the emulator stops unless exported explicitly. Stop the combined app/emulator process with Ctrl-C.
 
+### Local development with real Firebase
+
+The web client uses the project in `firebase-applet-config.json` unless the emulator flag is enabled. To connect the local app to the real Firebase project:
+
+1. In Firebase Console, enable **Authentication → Sign-in method → Email/Password** and ensure the configured named Firestore database exists. This also resolves Firebase's `auth/operation-not-allowed` error for password sign-in.
+2. Create a Firebase service-account key for the same project and save it outside this repository. Do not commit the key or paste it into client code. Copy `.env.example` to `.env` and set `GOOGLE_APPLICATION_CREDENTIALS` to the key's absolute path. The server loads `.env` automatically; the Firebase Admin SDK uses the key for trusted Auth token verification and Firestore access.
+3. From the repository root, run `npm run dev:firebase`, then open `http://localhost:3000`. This explicitly disables Auth emulators and enables production-safe data initialization: it will not import `data/db.json` or seed demo operational records into the real database. Existing Firestore data is retained. Writes made through this mode affect the real project.
+
+Use the Firebase Emulator instructions above when you want isolated test accounts and data. Do not set emulator host variables when running `dev:firebase`. Local real-Firebase credentials, the Firebase project, and the production Netlify site must all refer to the same project.
+
 ## Operational workflows and release readiness
 
 Environmental reports receive a tracking number, a status history, and a non-blocking possible-duplicate warning for matching open reports of the same category within 50 metres and seven days. Verified officials advance reports through review, assignment, work, resolution, or rejection; resolution requires a note or HTTPS evidence link. Residents can rate a resolution and request reopening. Recycling logs and passing segregation quizzes remain pending until official review; officials may award 0–50 points per activity with a required audit note. Verified recycling kilograms and points are credited once. Report awards are written to the activity log with their source and verifier. Household registration and event RSVPs do not award points.

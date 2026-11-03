@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -43,9 +44,24 @@ if (!fs.existsSync(configPath)) {
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as FirebaseConfig;
 const useEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+const useProductionData = process.env.FIREBASE_DATA_MODE === 'production';
 
 if (process.env.NETLIFY === 'true' && useEmulator) {
   throw new Error('Firebase Emulator variables must not be set in the Netlify production environment.');
+}
+if (useProductionData && (
+  useEmulator ||
+  Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST) ||
+  process.env.VITE_USE_FIREBASE_EMULATORS === 'true'
+)) {
+  throw new Error('Emulator settings conflict with FIREBASE_DATA_MODE=production. Unset emulator variables before using real Firebase.');
+}
+if (useProductionData && !serviceAccountJson && !credentialsPath) {
+  throw new Error('Real Firebase mode requires GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT.');
+}
+if (useProductionData && credentialsPath && !fs.existsSync(credentialsPath)) {
+  throw new Error(`Firebase service-account file was not found at GOOGLE_APPLICATION_CREDENTIALS: ${credentialsPath}`);
 }
 if (process.env.NETLIFY === 'true' && !serviceAccountJson) {
   throw new Error('Set FIREBASE_SERVICE_ACCOUNT in Netlify environment variables for Firebase Admin access.');
