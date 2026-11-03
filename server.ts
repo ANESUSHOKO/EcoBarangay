@@ -1596,7 +1596,10 @@ async function startServer() {
   });
 }
 
-if (process.env.NETLIFY !== 'true') {
+const isServerlessRuntime = process.env.NETLIFY === 'true' ||
+  Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+
+if (!isServerlessRuntime) {
   startServer().catch(error => {
     console.error('EcoBarangay failed to start:', error);
     process.exitCode = 1;
