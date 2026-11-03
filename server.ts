@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { dbStore } from './src/server/dbStore';
 import { isBootstrapSystemAdmin } from './src/server/adminBootstrap';
 import { challengeView, eventView } from './src/server/publicViews';
@@ -1571,6 +1570,7 @@ export async function createApp(options: AppOptions = {}) {
 
   if (options.serveFrontend) {
     if (process.env.NODE_ENV !== 'production') {
+      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',
