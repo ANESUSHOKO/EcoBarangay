@@ -62,6 +62,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
   const [pointMultiplier, setPointMultiplier] = useState(1.0);
   const [requirePhotoVerification, setRequirePhotoVerification] = useState(true);
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
+  const [adminActionError, setAdminActionError] = useState<string | null>(null);
 
   // Timeframe selector for analytics
 
@@ -94,7 +95,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
 
   const notifySuccess = (msg: string) => {
     setAdminActionSuccess(msg);
+    setAdminActionError(null);
     setTimeout(() => setAdminActionSuccess(null), 3500);
+  };
+
+  const decideOfficialAccess = async (user: User, decision: 'Approved' | 'Rejected') => {
+    setAdminActionError(null);
+    try {
+      const updated = await api.decideOfficialAccess(user.id, decision);
+      setUsers(current => current.map(item => item.id === updated.id ? updated : item));
+      notifySuccess(decision === 'Approved'
+        ? `${user.fullName} is now an approved official for ${user.barangayName}.`
+        : `Official access request from ${user.fullName} was rejected.`);
+    } catch (error) {
+      setAdminActionError(error instanceof Error ? error.message : 'Could not update official access.');
+    }
   };
 
   const filteredUsers = users.filter(u => {
@@ -260,6 +275,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
         <div className="p-4 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           <span>{adminActionSuccess}</span>
+        </div>
+      )}
+      {adminActionError && (
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-800">
+          {adminActionError}
         </div>
       )}
 
@@ -625,12 +645,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                     <td className="p-3 font-black text-amber-600 dark:text-amber-400">⚡ {u.ecoPoints || 0}</td>
                     <td className="p-3 font-bold text-emerald-700 dark:text-emerald-400">{u.kgRecycled || 0} kg</td>
                     <td className="p-3 text-right">
-                      <button
-                        onClick={() => notifySuccess(`Permissions audited for ${u.fullName}`)}
-                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-bold"
-                      >
-                        Audit
-                      </button>
+                      {u.officialAccessRequest?.status === 'Pending' ? (
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => decideOfficialAccess(u, 'Approved')}
+                            className="rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white"
+                          >
+                            Approve official
+                          </button>
+                          <button
+                            onClick={() => decideOfficialAccess(u, 'Rejected')}
+                            className="rounded-lg bg-slate-600 px-2.5 py-1 text-[11px] font-bold text-white"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : u.role === 'BARANGAY_OFFICIAL' && u.verifiedOfficial ? (
+                        <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">Verified official</span>
+                      ) : u.officialAccessRequest?.status === 'Rejected' ? (
+                        <span className="text-[11px] text-slate-500">Request rejected</span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

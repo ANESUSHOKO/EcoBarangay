@@ -91,7 +91,8 @@ interface DBData {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const PSGC_DIR = path.join(DATA_DIR, 'psgc');
-const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' }> = [
+const IS_PRODUCTION_RUNTIME = process.env.NETLIFY === 'true' || process.env.NODE_ENV === 'production';
+const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' | 'barangayId' }> = [
   { name: 'regions', idField: 'code' },
   { name: 'provinces', idField: 'code' },
   { name: 'cities', idField: 'code' },
@@ -115,7 +116,7 @@ const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' 
   { name: 'assets', idField: 'id' },
   { name: 'trees', idField: 'id' },
   { name: 'alerts', idField: 'id' },
-  { name: 'improvements', idField: 'id' },
+  { name: 'improvements', idField: 'barangayId' },
   { name: 'rankingSnapshots', idField: 'id' },
 ];
 
@@ -203,35 +204,36 @@ class DBStore {
 
   private createDefaultData(): DBData {
     return JSON.parse(JSON.stringify({
-      regions: INITIAL_REGIONS,
-      provinces: INITIAL_PROVINCES,
-      cities: INITIAL_CITIES,
-      barangays: INITIAL_BARANGAYS,
+      regions: IS_PRODUCTION_RUNTIME ? [] : INITIAL_REGIONS,
+      provinces: IS_PRODUCTION_RUNTIME ? [] : INITIAL_PROVINCES,
+      cities: IS_PRODUCTION_RUNTIME ? [] : INITIAL_CITIES,
+      barangays: IS_PRODUCTION_RUNTIME ? [] : INITIAL_BARANGAYS,
       users: [],
-      governmentPages: INITIAL_GOVERNMENT_PAGES,
-      facilities: INITIAL_FACILITIES,
-      reports: INITIAL_REPORTS,
-      events: INITIAL_EVENTS,
-      challenges: INITIAL_CHALLENGES,
-      schedules: INITIAL_SCHEDULES,
-      activityLogs: INITIAL_ACTIVITY_LOGS,
-      announcements: INITIAL_ANNOUNCEMENTS,
-      feedPosts: INITIAL_FEED_POSTS,
-      notifications: INITIAL_NOTIFICATIONS,
+      governmentPages: IS_PRODUCTION_RUNTIME ? [] : INITIAL_GOVERNMENT_PAGES,
+      facilities: IS_PRODUCTION_RUNTIME ? [] : INITIAL_FACILITIES,
+      reports: IS_PRODUCTION_RUNTIME ? [] : INITIAL_REPORTS,
+      events: IS_PRODUCTION_RUNTIME ? [] : INITIAL_EVENTS,
+      challenges: IS_PRODUCTION_RUNTIME ? [] : INITIAL_CHALLENGES,
+      schedules: IS_PRODUCTION_RUNTIME ? [] : INITIAL_SCHEDULES,
+      activityLogs: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ACTIVITY_LOGS,
+      announcements: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ANNOUNCEMENTS,
+      feedPosts: IS_PRODUCTION_RUNTIME ? [] : INITIAL_FEED_POSTS,
+      notifications: IS_PRODUCTION_RUNTIME ? [] : INITIAL_NOTIFICATIONS,
       calendarEvents: INITIAL_CALENDAR_EVENTS,
       bulkPickups: INITIAL_BULK_PICKUPS,
-      businesses: INITIAL_BUSINESSES,
-      organizations: INITIAL_ORGANIZATIONS,
+      businesses: IS_PRODUCTION_RUNTIME ? [] : INITIAL_BUSINESSES,
+      organizations: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ORGANIZATIONS,
       familyGroups: INITIAL_FAMILY_GROUPS,
-      assets: INITIAL_ASSETS,
+      assets: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ASSETS,
       trees: INITIAL_TREES,
-      alerts: INITIAL_ALERTS,
-      improvements: INITIAL_BARANGAY_IMPROVEMENTS,
+      alerts: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ALERTS,
+      improvements: IS_PRODUCTION_RUNTIME ? [] : INITIAL_BARANGAY_IMPROVEMENTS,
       rankingSnapshots: [],
     })) as DBData;
   }
 
   private readLegacyData(): Record<string, unknown> | null {
+    if (IS_PRODUCTION_RUNTIME) return null;
     if (!fs.existsSync(DB_FILE)) return null;
     const parsed: unknown = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -485,25 +487,25 @@ class DBStore {
         regionName: b.regionName,
         lat: b.lat,
         lng: b.lng,
-        population: 4500,
+        population: IS_PRODUCTION_RUNTIME ? 0 : 4500,
         totalUsers: 0,
         score: {
-          wasteManagement: 15,
-          recycling: 12,
-          communityParticipation: 10,
-          reportsResolution: 10,
-          cleanupActivities: 5,
-          sustainabilityChallenges: 2,
-          educationParticipation: 2,
-          totalScore: 56,
+          wasteManagement: IS_PRODUCTION_RUNTIME ? 0 : 15,
+          recycling: IS_PRODUCTION_RUNTIME ? 0 : 12,
+          communityParticipation: IS_PRODUCTION_RUNTIME ? 0 : 10,
+          reportsResolution: IS_PRODUCTION_RUNTIME ? 0 : 10,
+          cleanupActivities: IS_PRODUCTION_RUNTIME ? 0 : 5,
+          sustainabilityChallenges: IS_PRODUCTION_RUNTIME ? 0 : 2,
+          educationParticipation: IS_PRODUCTION_RUNTIME ? 0 : 2,
+          totalScore: IS_PRODUCTION_RUNTIME ? 0 : 56,
           tier: 'Developing',
-          nationalRank: 1000,
+          nationalRank: IS_PRODUCTION_RUNTIME ? 0 : 1000,
         },
         totalRecycledKg: 0,
         totalReportsResolved: 0,
         totalReportsReceived: 0,
-        mrfActive: true,
-        garbageScheduleDays: ['Monday', 'Wednesday', 'Friday'],
+        mrfActive: !IS_PRODUCTION_RUNTIME,
+        garbageScheduleDays: IS_PRODUCTION_RUNTIME ? [] : ['Monday', 'Wednesday', 'Friday'],
       };
     };
 
@@ -566,29 +568,37 @@ class DBStore {
           regionName: match.regionName,
           lat: match.lat,
           lng: match.lng,
-          population: 4500,
+          population: IS_PRODUCTION_RUNTIME ? 0 : 4500,
           totalUsers: 0,
           score: {
-            wasteManagement: 15,
-            recycling: 12,
-            communityParticipation: 10,
-            reportsResolution: 10,
-            cleanupActivities: 5,
-            sustainabilityChallenges: 2,
-            educationParticipation: 2,
-            totalScore: 56,
+            wasteManagement: IS_PRODUCTION_RUNTIME ? 0 : 15,
+            recycling: IS_PRODUCTION_RUNTIME ? 0 : 12,
+            communityParticipation: IS_PRODUCTION_RUNTIME ? 0 : 10,
+            reportsResolution: IS_PRODUCTION_RUNTIME ? 0 : 10,
+            cleanupActivities: IS_PRODUCTION_RUNTIME ? 0 : 5,
+            sustainabilityChallenges: IS_PRODUCTION_RUNTIME ? 0 : 2,
+            educationParticipation: IS_PRODUCTION_RUNTIME ? 0 : 2,
+            totalScore: IS_PRODUCTION_RUNTIME ? 0 : 56,
             tier: 'Developing',
-            nationalRank: 1000,
+            nationalRank: IS_PRODUCTION_RUNTIME ? 0 : 1000,
           },
           totalRecycledKg: 0,
           totalReportsResolved: 0,
           totalReportsReceived: 0,
-          mrfActive: true,
-          garbageScheduleDays: ['Monday', 'Wednesday', 'Friday'],
+          mrfActive: !IS_PRODUCTION_RUNTIME,
+          garbageScheduleDays: IS_PRODUCTION_RUNTIME ? [] : ['Monday', 'Wednesday', 'Friday'],
         };
       }
     }
     return undefined;
+  }
+
+  private getOrCreateBarangayById(id: string): Barangay | undefined {
+    const existing = this.data.barangays.find(barangay => barangay.id === id || barangay.psgcCode === id);
+    if (existing) return existing;
+    const barangay = this.getBarangayById(id);
+    if (barangay) this.data.barangays.push(barangay);
+    return barangay;
   }
 
   public detectNearestBarangay(lat: number, lng: number): { nearestBarangay: Barangay & { distanceKm: number }; distanceKm: number } {
@@ -654,7 +664,7 @@ class DBStore {
     this.data.users.push(newUser);
 
     // Update barangay total user count
-    const brgy = this.getBarangayById(newUser.barangayId);
+    const brgy = this.getOrCreateBarangayById(newUser.barangayId);
     if (brgy) {
       brgy.totalUsers = (brgy.totalUsers || 0) + 1;
     }
@@ -693,7 +703,7 @@ class DBStore {
 
     // Boost barangay score if MRF added
     if (data.category === 'mrf') {
-      const brgy = this.getBarangayById(data.barangayId);
+      const brgy = this.getOrCreateBarangayById(data.barangayId);
       if (brgy) {
         brgy.mrfActive = true;
         brgy.score.wasteManagement = Math.min(25, brgy.score.wasteManagement + 2);
@@ -746,7 +756,7 @@ class DBStore {
     this.data.reports.push(newReport);
 
     // Update barangay stats
-    const brgy = this.getBarangayById(data.barangayId);
+    const brgy = this.getOrCreateBarangayById(data.barangayId);
     if (brgy) {
       brgy.totalReportsReceived += 1;
     }
@@ -804,7 +814,7 @@ class DBStore {
         assignedTeam: status === 'Assigned' ? assignedTeam?.trim() : undefined,
       });
 
-      const brgy = this.getBarangayById(report.barangayId);
+      const brgy = this.getOrCreateBarangayById(report.barangayId);
 
       // Create notification for report update
       this.createNotification({
@@ -835,7 +845,7 @@ class DBStore {
             sourceId: report.id,
           });
         }
-        const brgy = this.getBarangayById(report.barangayId);
+        const brgy = this.getOrCreateBarangayById(report.barangayId);
         if (brgy) {
           brgy.totalReportsResolved += 1;
           // Boost report resolution score
@@ -1421,7 +1431,7 @@ class DBStore {
       resident.ecoPoints += pointsAwarded;
       if (activity.type === 'Recycling') {
         resident.kgRecycled += activity.kgRecycled || 0;
-        const barangay = this.getBarangayById(resident.barangayId);
+        const barangay = this.getOrCreateBarangayById(resident.barangayId);
         if (barangay) {
           barangay.totalRecycledKg += activity.kgRecycled || 0;
         }

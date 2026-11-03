@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../../lib/api';
+import { compressImage } from '../../lib/compressImage';
 import { FeedPost, User, Language, Barangay, GovernmentPage, Region, Province, City } from '../../types';
 import { getTranslation } from '../../lib/i18n';
 import {
@@ -541,7 +542,7 @@ export function CommunityFeedPage({ currentUser, currentBarangay, lang, onNaviga
     }
   }, [currentUser, followingPageIds, lang]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -567,12 +568,21 @@ export function CommunityFeedPage({ currentUser, currentBarangay, lang, onNaviga
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPhotoUrl(reader.result as string);
-      setShowPhotoPicker(false);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoUrl(reader.result as string);
+        setShowPhotoPicker(false);
+      };
+      reader.onerror = () => {
+        alert(lang === 'tl' ? 'Hindi mabasa ang napiling larawan.' : 'Could not read the selected photo.');
+      };
+      reader.readAsDataURL(compressed);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not prepare the photo.');
+      e.target.value = '';
+    }
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {

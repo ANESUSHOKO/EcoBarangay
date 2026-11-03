@@ -1,29 +1,77 @@
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import fs from 'fs';
 import path from 'path';
 
-let firestoreDb: ReturnType<typeof getFirestore> | null = null;
-let firebaseAuth: ReturnType<typeof getAuth> | null = null;
+type FirebaseConfig = {
+  projectId: string;
+  firestoreDatabaseId?: string;
+};
 
-try {
-  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    if (!getApps().length) {
-      initializeApp({
-        projectId: config.projectId,
-      });
-    }
-    firestoreDb = getFirestore(config.firestoreDatabaseId || undefined);
-    firebaseAuth = getAuth();
-    console.log('Firebase Admin Firestore initialized successfully for database:', config.firestoreDatabaseId);
-  } else {
-    console.warn('firebase-applet-config.json not found, skipping Firebase Admin initialization');
+function parseServiceAccount(value: string): ServiceAccount {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT must contain valid service-account JSON.');
   }
-} catch (err) {
-  console.error('Failed to initialize Firebase Admin:', err);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT must contain a JSON object.');
+  }
+
+  const account = parsed as Record<string, unknown>;
+  const projectId = account.project_id ?? account.projectId;
+  const clientEmail = account.client_email ?? account.clientEmail;
+  const privateKey = account.private_key ?? account.privateKey;
+  if (typeof projectId !== 'string' || typeof clientEmail !== 'string' || typeof privateKey !== 'string') {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT is missing project ID, client email, or private key.');
+  }
+
+  return {
+    projectId,
+    clientEmail,
+    privateKey: privateKey.replace(/\\n/g, '\n'),
+  };
 }
 
-export { firestoreDb, firebaseAuth };
+const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+if (!fs.existsSync(configPath)) {
+  throw new Error('firebase-applet-config.json is required to initialize Firebase Admin.');
+}
+
+const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as FirebaseConfig;
+const useEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+
+if (process.env.NETLIFY === 'true' && useEmulator) {
+  throw new Error('Firebase Emulator variables must not be set in the Netlify production environment.');
+}
+if (process.env.NETLIFY === 'true' && !serviceAccountJson) {
+  throw new Error('Set FIREBASE_SERVICE_ACCOUNT in Netlify environment variables for Firebase Admin access.');
+}
+
+const projectId = useEmulator
+  ? process.env.GCLOUD_PROJECT || 'demo-ecobarangay'
+  : config.projectId;
+const serviceAccount = serviceAccountJson ? parseServiceAccount(serviceAccountJson) : undefined;
+if (serviceAccount?.projectId && serviceAccount.projectId !== projectId) {
+  throw new Error('FIREBASE_SERVICE_ACCOUNT project does not match firebase-applet-config.json.');
+}
+
+const app = getApps()[0] || initializeApp({
+  projectId,
+  ...(serviceAccount && !useEmulator ? { credential: cert(serviceAccount) } : {}),
+});
+
+export const firestoreDb = getFirestore(
+  app,
+  useEmulator ? undefined : config.firestoreDatabaseId || undefined,
+);
+export const firebaseAuth = getAuth(app);
+
+console.log(
+  useEmulator
+    ? `Firebase Admin initialized with local emulators for project ${projectId}.`
+    : `Firebase Admin initialized for database ${config.firestoreDatabaseId || '(default)'}.`,
+);

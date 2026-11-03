@@ -21,6 +21,11 @@ export interface User {
   avatarUrl?: string;
   photoUrl?: string;
   verifiedOfficial?: boolean;
+  officialAccessRequest?: {
+    barangayId: string;
+    status: 'Pending' | 'Approved' | 'Rejected';
+    submittedAt: string;
+  };
   followingUserIds?: string[];
   followingPageIds?: string[];
   householdHeadName?: string;

@@ -1,9 +1,16 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import config from '../../firebase-applet-config.json';
 
-const app = !getApps().length ? initializeApp(config) : getApp();
+const useEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
+const app = !getApps().length
+  ? initializeApp({ ...config, ...(useEmulators ? { projectId: 'demo-ecobarangay' } : {}) })
+  : getApp();
 
 export const storage = getStorage(app);
 export const auth = getAuth(app);
+
+if (useEmulators) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+}
