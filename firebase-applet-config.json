@@ -6,8 +6,5 @@
   "databaseURL": "https://gen-lang-client-0102352579-default-rtdb.asia-southeast1.firebasedatabase.app",
   "firestoreDatabaseId": "ai-studio-ecobarangay-7bdf76b9-303e-44e9-a459-81835c8d8313",
   "storageBucket": "gen-lang-client-0102352579.firebasestorage.app",
-  "messagingSenderId": "421585021649",
-  "measurementId": "",
-  "oAuthClientId": "421585021649-d1v09qfq6pvmrkmae0i8cosa19t2ag5h.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "messagingSenderId": "421585021649"
 }
