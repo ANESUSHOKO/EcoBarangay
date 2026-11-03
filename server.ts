@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { dbStore } from './src/server/dbStore';
+import { isBootstrapSystemAdmin } from './src/server/adminBootstrap';
 import { challengeView, eventView } from './src/server/publicViews';
 import {
   verifyPassword,
@@ -14,6 +15,10 @@ type AuthenticatedRequest = express.Request & {
   appUser?: User;
   firebaseUid?: string;
   firebaseEmail?: string;
+};
+
+type AppOptions = {
+  serveFrontend?: boolean;
 };
 
 function inspectImageData(imageData: string, declaredMimeType?: string) {
@@ -49,10 +54,9 @@ function inspectImageData(imageData: string, declaredMimeType?: string) {
     : { error: 'format' as const };
 }
 
-async function startServer() {
+export async function createApp(options: AppOptions = {}) {
   await dbStore.ready();
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
   const aiRequestTimes = new Map<string, number[]>();
 
   function allowAiRequest(key: string, limit: number): boolean {
@@ -124,11 +128,18 @@ async function startServer() {
     try {
       const identity = await firebaseAuth.verifyIdToken(token);
       const isRegistration = req.path === '/api/auth/register' && req.method === 'POST';
-      if (!identity.email_verified && !isRegistration) {
-        return res.status(403).json({ error: 'Verify your email address before continuing.' });
-      }
 
-      const appUser = identity.email ? dbStore.getUserByEmail(identity.email) : undefined;
+      const storedAppUser = identity.email ? dbStore.getUserByEmail(identity.email) : undefined;
+      const isBootstrapAdmin = isBootstrapSystemAdmin(
+        identity.email,
+        identity.uid,
+        process.env.SYSTEM_ADMIN_EMAIL,
+        process.env.SYSTEM_ADMIN_UID,
+        Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST),
+      );
+      const appUser = storedAppUser && isBootstrapAdmin
+        ? { ...storedAppUser, role: 'SYSTEM_ADMIN' as const, verifiedOfficial: false }
+        : storedAppUser;
       if (!appUser && !isRegistration) {
         return res.status(403).json({ error: 'No EcoBarangay profile is linked to this account.' });
       }
@@ -152,7 +163,7 @@ async function startServer() {
           return res.status(403).json({ error: 'You may only act on your own account.' });
         }
 
-        if (req.path === '/api/admin/users' && appUser.role !== 'SYSTEM_ADMIN') {
+        if (req.path.startsWith('/api/admin/') && appUser.role !== 'SYSTEM_ADMIN') {
           return res.status(403).json({ error: 'System administrator access is required.' });
         }
 
@@ -304,6 +315,7 @@ async function startServer() {
       barangayId,
       phone,
       avatarUrl,
+      requestOfficialAccess,
       householdHeadName,
       householdMembersCount,
       householdAddress,
@@ -323,6 +335,9 @@ async function startServer() {
 
     if (role !== 'RESIDENT') {
       return res.status(403).json({ error: 'Privileged roles require administrator approval.' });
+    }
+    if (requestOfficialAccess !== undefined && typeof requestOfficialAccess !== 'boolean') {
+      return res.status(400).json({ error: 'Official access request must be true or false.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -356,6 +371,9 @@ async function startServer() {
       avatarUrl: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
       photoUrl: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
       verifiedOfficial: false,
+      officialAccessRequest: requestOfficialAccess
+        ? { barangayId: brgy.id, status: 'Pending', submittedAt: new Date().toISOString() }
+        : undefined,
       householdHeadName,
       householdMembersCount: householdMembersCount ? Number(householdMembersCount) : undefined,
       householdAddress,
@@ -1497,30 +1515,90 @@ async function startServer() {
 
   // System Admin: All Users
   app.get('/api/admin/users', (req, res) => {
-    res.json(dbStore.getUsers().map(({ passwordHash: _, ...user }) => user));
+    res.json(dbStore.getUsers().map(({ passwordHash: _, ...user }) => ({
+      ...user,
+      ...(isBootstrapSystemAdmin(
+        user.email,
+        user.firebaseUid,
+        process.env.SYSTEM_ADMIN_EMAIL,
+        process.env.SYSTEM_ADMIN_UID,
+        Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST),
+      )
+        ? { role: 'SYSTEM_ADMIN' as const, verifiedOfficial: false }
+        : {}),
+    })));
   });
 
-  // Vite middleware setup
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
+  app.get('/api/official/account-summary', (req, res) => {
+    const user = (req as AuthenticatedRequest).appUser;
+    if (!user || (user.role !== 'SYSTEM_ADMIN' &&
+        (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial))) {
+      return res.status(403).json({ error: 'Verified barangay official access is required.' });
+    }
+
+    const users = dbStore.getUsers().filter(account => account.barangayId === user.barangayId);
+    return res.json({
+      registeredAccounts: users.length,
+      residentAccounts: users.filter(account => account.role === 'RESIDENT').length,
     });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+  });
+
+  app.post('/api/admin/users/:id/official-access', (req, res) => {
+    const { decision } = req.body as { decision?: unknown };
+    if (decision !== 'Approved' && decision !== 'Rejected') {
+      return res.status(400).json({ error: 'Decision must be Approved or Rejected.' });
+    }
+
+    const user = dbStore.getUserById(req.params.id);
+    if (
+      !user ||
+      user.role !== 'RESIDENT' ||
+      user.officialAccessRequest?.status !== 'Pending' ||
+      user.officialAccessRequest.barangayId !== user.barangayId
+    ) {
+      return res.status(404).json({ error: 'Pending official access request not found.' });
+    }
+
+    const updated = dbStore.updateUser(user.id, {
+      role: decision === 'Approved' ? 'BARANGAY_OFFICIAL' : 'RESIDENT',
+      verifiedOfficial: decision === 'Approved',
+      officialAccessRequest: { ...user.officialAccessRequest, status: decision },
     });
+    if (!updated) return res.status(404).json({ error: 'User not found.' });
+    const { passwordHash: _, ...safeUser } = updated;
+    return res.json(safeUser);
+  });
+
+  if (options.serveFrontend) {
+    if (process.env.NODE_ENV !== 'production') {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
   }
 
+  return app;
+}
+
+async function startServer() {
+  const app = await createApp({ serveFrontend: true });
+  const PORT = Number(process.env.PORT) || 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[EcoBarangay] Full-stack Server listening at http://localhost:${PORT}`);
   });
 }
 
-startServer().catch(error => {
-  console.error('EcoBarangay failed to start:', error);
-  process.exitCode = 1;
-});
+if (process.env.NETLIFY !== 'true') {
+  startServer().catch(error => {
+    console.error('EcoBarangay failed to start:', error);
+    process.exitCode = 1;
+  });
+}

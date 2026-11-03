@@ -147,6 +147,7 @@ export const api = {
     fullName: string;
     role: string;
     barangayId: string;
+    requestOfficialAccess?: boolean;
     phone?: string;
     avatarUrl?: string;
     householdHeadName?: string;
@@ -622,6 +623,15 @@ export const api = {
       () => fetchJSON<User[]>('/api/admin/users'),
       () => clientStore.getAllAdminUsers()
     ),
+
+  decideOfficialAccess: (userId: string, decision: 'Approved' | 'Rejected') =>
+    fetchJSON<User>(`/api/admin/users/${encodeURIComponent(userId)}/official-access`, {
+      method: 'POST',
+      body: JSON.stringify({ decision }),
+    }),
+
+  getOfficialAccountSummary: () =>
+    fetchJSON<{ registeredAccounts: number; residentAccounts: number }>('/api/official/account-summary'),
 
   // ==================== NEW FEATURES API METHODS ====================
 

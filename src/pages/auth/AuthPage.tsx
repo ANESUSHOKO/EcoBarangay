@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { api } from '../../lib/api';
 import { User, Barangay } from '../../types';
 import { auth } from '../../lib/firebase';
+import { compressImage } from '../../lib/compressImage';
 import {
   createUserWithEmailAndPassword,
   deleteUser,
-  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
@@ -51,6 +51,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   selectedBarangay,
 }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>('login');
+  const [loginPortal, setLoginPortal] = useState<'community' | 'official' | 'admin'>('community');
+  const [registerAsOfficial, setRegisterAsOfficial] = useState(false);
   // Form states - Login & Register
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -101,21 +103,27 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setUploadingImage(true);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setAvatarUrl(reader.result);
-      }
+    try {
+      const compressed = await compressImage(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setAvatarUrl(reader.result);
+        }
+        setUploadingImage(false);
+      };
+      reader.onerror = () => {
+        setError('Failed to read image file.');
+        setUploadingImage(false);
+      };
+      reader.readAsDataURL(compressed);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to prepare the profile photo.');
       setUploadingImage(false);
-    };
-    reader.onerror = () => {
-      setError('Failed to read image file.');
-      setUploadingImage(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
-  // Sign in with Firebase Authentication and require a verified email.
+  // Sign in with Firebase Authentication; privileged access is still role-gated by the server.
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
@@ -132,33 +140,32 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setSuccessInfo(null);
 
     try {
-      let firebaseUser;
       try {
-        firebaseUser = (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
+        await signInWithEmailAndPassword(auth, email.trim(), password);
       } catch (signInError) {
         const migration = await api.checkLegacyCredentials(email.trim(), password);
         if (!migration.success) throw signInError;
 
-        firebaseUser = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
-        try {
-          await sendEmailVerification(firebaseUser, { url: window.location.origin });
-        } catch (error) {
-          await deleteUser(firebaseUser);
-          throw error;
-        }
-        await signOut(auth);
-        setSuccessInfo('We sent an email verification link. Verify your email, then sign in again.');
-        return;
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
       }
 
-      if (!firebaseUser.emailVerified) {
-        await sendEmailVerification(firebaseUser, { url: window.location.origin });
+      const user = await api.getCurrentUser();
+      if (loginPortal === 'official' && (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial)) {
         await signOut(auth);
-        setSuccessInfo('Please verify your email using the link we sent before signing in.');
+        setError('This account does not have approved barangay official access yet.');
         return;
       }
-
-      onSuccess(await api.getCurrentUser());
+      if (loginPortal === 'admin' && user.role !== 'SYSTEM_ADMIN') {
+        await signOut(auth);
+        setError('This account is not configured for system administrator access.');
+        return;
+      }
+      if (loginPortal === 'community' && user.role !== 'RESIDENT') {
+        await signOut(auth);
+        setError('Choose the matching privileged portal to sign in to this account.');
+        return;
+      }
+      onSuccess(user);
     } catch (err: any) {
       setError(err.message || 'Unable to sign in. Check your credentials and try again.');
     } finally {
@@ -223,24 +230,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     try {
       const firebaseUser = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
       try {
-        await sendEmailVerification(firebaseUser, { url: window.location.origin });
-        await api.register({
+        const result = await api.register({
           email: firebaseUser.email || email.trim(),
           fullName: fullName.trim(),
           role: 'RESIDENT',
           barangayId: selectedBarangay.id,
+          requestOfficialAccess: registerAsOfficial,
           phone: phone.trim() || undefined,
           avatarUrl: avatarUrl || undefined,
         });
+        const user = result.user || await api.getCurrentUser();
+        onSuccess(user);
       } catch (error) {
         await deleteUser(firebaseUser);
         throw error;
       }
-      await signOut(auth);
-      setMode('login');
-      setEmail(email.trim());
-      setPassword('');
-      setSuccessInfo('Account created. Verify your email using the link we sent, then sign in.');
     } catch (err: any) {
       setError(err.message || 'Registration failed.');
     } finally {
@@ -337,6 +341,41 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </form>
           ) : mode === 'login' ? (
               <form onSubmit={handleLogin} className="space-y-4">
+                <fieldset className="grid grid-cols-3 gap-2">
+                  <legend className="sr-only">Choose sign-in portal</legend>
+                  <button
+                    type="button"
+                    onClick={() => setLoginPortal('community')}
+                    aria-pressed={loginPortal === 'community'}
+                    className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${loginPortal === 'community' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                  >
+                    Community
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginPortal('official')}
+                    aria-pressed={loginPortal === 'official'}
+                    className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${loginPortal === 'official' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                  >
+                    Official
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginPortal('admin')}
+                    aria-pressed={loginPortal === 'admin'}
+                    className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${loginPortal === 'admin' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                  >
+                    Admin
+                  </button>
+                </fieldset>
+                {loginPortal !== 'community' && (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                    {loginPortal === 'official'
+                      ? 'Official accounts require administrator approval and use their own account password.'
+                      : 'Administrator access requires the configured email and Firebase account UID.'}
+                    {' '}Use your own account password; shared passwords are not used.
+                  </p>
+                )}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
                   <div className="relative">
@@ -408,6 +447,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900">
                 New accounts are resident accounts. Barangay official access requires administrator approval.
               </div>
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={registerAsOfficial}
+                  onChange={event => setRegisterAsOfficial(event.target.checked)}
+                  className="mt-0.5 accent-emerald-700"
+                />
+                <span>
+                  <span className="block font-bold">Apply for Barangay Official access</span>
+                  Your account will remain a resident account until an administrator approves this request for the selected barangay.
+                </span>
+              </label>
 
               {/* Profile Picture Option */}
               <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">

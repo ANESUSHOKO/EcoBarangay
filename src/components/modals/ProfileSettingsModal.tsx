@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User } from '../../types';
 import { api } from '../../lib/api';
 import { ThemeMode } from '../../lib/theme';
+import { compressImage } from '../../lib/compressImage';
 import { X, User as UserIcon, Phone, MapPin, Camera, Save, CheckCircle2, AlertCircle, Moon, Sun } from 'lucide-react';
 
 interface ProfileSettingsModalProps {
@@ -33,7 +34,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -61,16 +62,21 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setAvatarUrl(reader.result);
-      }
-    };
-    reader.onerror = () => {
-      setError('Failed to read image file.');
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setAvatarUrl(reader.result);
+        }
+      };
+      reader.onerror = () => {
+        setError('Failed to read image file.');
+      };
+      reader.readAsDataURL(compressed);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to prepare the profile photo.');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

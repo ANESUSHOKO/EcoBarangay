@@ -38,6 +38,15 @@ const REPORT_CATEGORIES: ReportCategory[] = [
   'Hazardous Waste', 'Open Burning (Siga)', 'Plastic Pollution',
   'Waterway Contamination', 'Unsegregated Waste',
 ];
+type ScheduleEdit = {
+  dayOfWeek: string;
+  timeSlot: string;
+  wasteType: GarbageSchedule['wasteType'];
+  instructions: string;
+  collectionTeam: string;
+  vehicleNumber: string;
+  zonesCovered: string;
+};
 
 export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
   currentUser,
@@ -47,6 +56,10 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'analytics' | 'reports' | 'events' | 'schedules' | 'recycling' | 'facilities'>('analytics');
 
   const [reports, setReports] = useState<EnvironmentalReport[]>([]);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
+  const [reportsLoadError, setReportsLoadError] = useState(false);
+  const [accountSummary, setAccountSummary] = useState<{ registeredAccounts: number; residentAccounts: number } | null>(null);
+  const [accountSummaryError, setAccountSummaryError] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [schedules, setSchedules] = useState<GarbageSchedule[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -58,7 +71,7 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
   const [recyclingEdits, setRecyclingEdits] = useState<Record<string, { points: string; notes: string }>>({});
   const [recyclingError, setRecyclingError] = useState('');
   const [reviewingActivityId, setReviewingActivityId] = useState<string | null>(null);
-  const [scheduleEdits, setScheduleEdits] = useState<Record<string, { collectionTeam: string; vehicleNumber: string; zonesCovered: string }>>({});
+  const [scheduleEdits, setScheduleEdits] = useState<Record<string, ScheduleEdit>>({});
   const [savingScheduleId, setSavingScheduleId] = useState<string | null>(null);
   const [scheduleError, setScheduleError] = useState('');
   const [showNewScheduleForm, setShowNewScheduleForm] = useState(false);
@@ -95,12 +108,52 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
   }, [currentBarangay.id]);
 
   const fetchOfficialData = () => {
-    api.getReports(currentBarangay.id).then(setReports).catch(console.error);
+    setReports([]);
+    setReportsLoaded(false);
+    setReportsLoadError(false);
+    setAccountSummary(null);
+    setAccountSummaryError(false);
+    api.getReports(currentBarangay.id)
+      .then(setReports)
+      .catch(error => {
+        console.error(error);
+        setReportsLoadError(true);
+      })
+      .finally(() => setReportsLoaded(true));
+    api.getOfficialAccountSummary().then(setAccountSummary).catch(error => {
+      console.error(error);
+      setAccountSummaryError(true);
+    });
     api.getEvents(currentBarangay.id).then(setEvents).catch(console.error);
     api.getSchedules(currentBarangay.id).then(setSchedules).catch(console.error);
     api.getFacilities({ barangayId: currentBarangay.id }).then(setFacilities).catch(console.error);
     api.getBulkPickups(undefined, currentBarangay.id).then(setBulkPickups).catch(console.error);
     api.getPendingEcoActivities(currentBarangay.id).then(setPendingRecyclingLogs).catch(console.error);
+  };
+
+  const getScheduleEdit = (schedule: GarbageSchedule): ScheduleEdit => scheduleEdits[schedule.id] || {
+    dayOfWeek: schedule.dayOfWeek,
+    timeSlot: schedule.timeSlot,
+    wasteType: schedule.wasteType,
+    instructions: schedule.instructions || '',
+    collectionTeam: schedule.collectionTeam || '',
+    vehicleNumber: schedule.vehicleNumber || schedule.truckNo || '',
+    zonesCovered: (schedule.zonesCovered || []).join(', '),
+  };
+
+  const updateScheduleEdit = (schedule: GarbageSchedule, updates: Partial<ScheduleEdit>) => {
+    setScheduleEdits(current => {
+      const currentEdit = current[schedule.id] || {
+        dayOfWeek: schedule.dayOfWeek,
+        timeSlot: schedule.timeSlot,
+        wasteType: schedule.wasteType,
+        instructions: schedule.instructions || '',
+        collectionTeam: schedule.collectionTeam || '',
+        vehicleNumber: schedule.vehicleNumber || schedule.truckNo || '',
+        zonesCovered: (schedule.zonesCovered || []).join(', '),
+      };
+      return { ...current, [schedule.id]: { ...currentEdit, ...updates } };
+    });
   };
 
   const handleResolveReport = async (status: ReportStatus) => {
@@ -172,17 +225,17 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
   };
 
   const handleSaveScheduleAssignment = async (schedule: GarbageSchedule) => {
-    const edits = scheduleEdits[schedule.id] || {
-      collectionTeam: schedule.collectionTeam || '',
-      vehicleNumber: schedule.vehicleNumber || schedule.truckNo || '',
-      zonesCovered: (schedule.zonesCovered || []).join(', '),
-    };
+    const edits = getScheduleEdit(schedule);
     setSavingScheduleId(schedule.id);
     setScheduleError('');
     try {
       const updated = await api.updateSchedule(schedule.id, {
-        collectionTeam: edits.collectionTeam.trim() || undefined,
-        vehicleNumber: edits.vehicleNumber.trim() || undefined,
+        dayOfWeek: edits.dayOfWeek.trim(),
+        timeSlot: edits.timeSlot.trim(),
+        wasteType: edits.wasteType,
+        instructions: edits.instructions.trim(),
+        collectionTeam: edits.collectionTeam.trim(),
+        vehicleNumber: edits.vehicleNumber.trim(),
         zonesCovered: edits.zonesCovered.split(',').map(zone => zone.trim()).filter(Boolean),
       });
       setSchedules(current => current.map(item => item.id === updated.id ? updated : item));
@@ -367,7 +420,11 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
       {activeTab === 'analytics' && (
         <OfficialAnalyticsSection
           currentBarangay={currentBarangay}
-          currentUser={currentUser}
+          reports={reports}
+          reportsLoaded={reportsLoaded}
+          reportsLoadError={reportsLoadError}
+          accountSummary={accountSummary}
+          accountSummaryError={accountSummaryError}
         />
       )}
 
@@ -607,34 +664,53 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {schedules.map(sch => (
               <div key={sch.id} className="p-5 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-xl">
-                    {sch.dayOfWeek}
-                  </span>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{sch.timeRange || sch.timeSlot}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                    Collection day
+                    <select
+                      value={getScheduleEdit(sch).dayOfWeek}
+                      onChange={event => updateScheduleEdit(sch, { dayOfWeek: event.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs dark:border-slate-600 dark:bg-slate-900"
+                    >
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => <option key={day}>{day}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                    Time window
+                    <input
+                      maxLength={80}
+                      value={getScheduleEdit(sch).timeSlot}
+                      onChange={event => updateScheduleEdit(sch, { timeSlot: event.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs dark:border-slate-600 dark:bg-slate-900"
+                    />
+                  </label>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{sch.wasteType}</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {(sch.zonesCovered || []).join(', ') || sch.zoneId || 'All zones'}
-                  </p>
-                </div>
-                <div className="text-[11px] text-slate-400 italic bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                  ⚠️ {sch.reminderNote || sch.instructions || 'Please bring out bins only during scheduled pickup hours.'}
-                </div>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  Waste type
+                  <select
+                    value={getScheduleEdit(sch).wasteType}
+                    onChange={event => updateScheduleEdit(sch, { wasteType: event.target.value as GarbageSchedule['wasteType'] })}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs dark:border-slate-600 dark:bg-slate-900"
+                  >
+                    {['Biodegradable', 'Non-Biodegradable', 'Recyclable', 'Bulk/E-Waste'].map(type => <option key={type}>{type}</option>)}
+                  </select>
+                </label>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  Collection instructions
+                  <textarea
+                    maxLength={500}
+                    rows={2}
+                    value={getScheduleEdit(sch).instructions}
+                    onChange={event => updateScheduleEdit(sch, { instructions: event.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs dark:border-slate-600 dark:bg-slate-900"
+                  />
+                </label>
                 <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                   Collection team
                   <input
                     aria-label={`Collection team for ${sch.wasteType} on ${sch.dayOfWeek}`}
-                    value={scheduleEdits[sch.id]?.collectionTeam ?? sch.collectionTeam ?? ''}
-                    onChange={event => setScheduleEdits(current => ({
-                      ...current,
-                      [sch.id]: {
-                        collectionTeam: event.target.value,
-                        vehicleNumber: current[sch.id]?.vehicleNumber ?? sch.vehicleNumber ?? sch.truckNo ?? '',
-                        zonesCovered: current[sch.id]?.zonesCovered ?? (sch.zonesCovered || []).join(', '),
-                      },
-                    }))}
+                    value={getScheduleEdit(sch).collectionTeam}
+                    onChange={event => updateScheduleEdit(sch, { collectionTeam: event.target.value })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs dark:border-slate-600 dark:bg-slate-900"
                   />
                 </label>
@@ -642,15 +718,8 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
                   Vehicle
                   <input
                     aria-label={`Collection vehicle for ${sch.wasteType} on ${sch.dayOfWeek}`}
-                    value={scheduleEdits[sch.id]?.vehicleNumber ?? sch.vehicleNumber ?? sch.truckNo ?? ''}
-                    onChange={event => setScheduleEdits(current => ({
-                      ...current,
-                      [sch.id]: {
-                        collectionTeam: current[sch.id]?.collectionTeam ?? sch.collectionTeam ?? '',
-                        vehicleNumber: event.target.value,
-                        zonesCovered: current[sch.id]?.zonesCovered ?? (sch.zonesCovered || []).join(', '),
-                      },
-                    }))}
+                    value={getScheduleEdit(sch).vehicleNumber}
+                    onChange={event => updateScheduleEdit(sch, { vehicleNumber: event.target.value })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs dark:border-slate-600 dark:bg-slate-900"
                   />
                 </label>
@@ -658,15 +727,8 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
                   Zones (comma-separated)
                   <input
                     aria-label={`Collection zones for ${sch.wasteType} on ${sch.dayOfWeek}`}
-                    value={scheduleEdits[sch.id]?.zonesCovered ?? (sch.zonesCovered || []).join(', ')}
-                    onChange={event => setScheduleEdits(current => ({
-                      ...current,
-                      [sch.id]: {
-                        collectionTeam: current[sch.id]?.collectionTeam ?? sch.collectionTeam ?? '',
-                        vehicleNumber: current[sch.id]?.vehicleNumber ?? sch.vehicleNumber ?? sch.truckNo ?? '',
-                        zonesCovered: event.target.value,
-                      },
-                    }))}
+                    value={getScheduleEdit(sch).zonesCovered}
+                    onChange={event => updateScheduleEdit(sch, { zonesCovered: event.target.value })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs dark:border-slate-600 dark:bg-slate-900"
                   />
                 </label>

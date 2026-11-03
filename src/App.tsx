@@ -90,7 +90,7 @@ export function App() {
     }).catch(console.error);
 
     return onAuthStateChanged(auth, async firebaseUser => {
-      if (!firebaseUser?.emailVerified) {
+      if (!firebaseUser) {
         setCurrentUser(null);
         localStorage.removeItem('ecobarangay_current_user_id');
         if (window.location.hash === '#dashboard') {
