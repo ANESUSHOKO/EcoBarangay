@@ -46,8 +46,11 @@ const useEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
 const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
 const useProductionData = process.env.FIREBASE_DATA_MODE === 'production';
+// `NETLIFY` is only set during builds, so also detect the Functions (Lambda) runtime.
+const isNetlifyRuntime = process.env.NETLIFY === 'true' ||
+  Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
 
-if (process.env.NETLIFY === 'true' && useEmulator) {
+if (isNetlifyRuntime && useEmulator) {
   throw new Error('Firebase Emulator variables must not be set in the Netlify production environment.');
 }
 if (useProductionData && (
@@ -63,7 +66,7 @@ if (useProductionData && !serviceAccountJson && !credentialsPath) {
 if (useProductionData && credentialsPath && !fs.existsSync(credentialsPath)) {
   throw new Error(`Firebase service-account file was not found at GOOGLE_APPLICATION_CREDENTIALS: ${credentialsPath}`);
 }
-if (process.env.NETLIFY === 'true' && !serviceAccountJson) {
+if (isNetlifyRuntime && !serviceAccountJson) {
   throw new Error('Set FIREBASE_SERVICE_ACCOUNT in Netlify environment variables for Firebase Admin access.');
 }
 
