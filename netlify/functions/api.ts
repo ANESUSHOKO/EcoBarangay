@@ -9,7 +9,7 @@ export const handler: Handler = async (event, context) => {
   appHandlerPromise ??= createApp().then(app => serverless(app));
   const appHandler = await appHandlerPromise;
   const path = event.path.startsWith(functionPrefix)
-    ? event.path.slice(functionPrefix.length) || '/'
+    ? `/api${event.path.slice(functionPrefix.length)}`
     : event.path;
   const response = await appHandler({ ...event, path }, context);
   return response as HandlerResponse;
