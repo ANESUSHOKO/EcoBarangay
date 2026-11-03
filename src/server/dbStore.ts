@@ -91,7 +91,9 @@ interface DBData {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const PSGC_DIR = path.join(DATA_DIR, 'psgc');
-const IS_PRODUCTION_RUNTIME = process.env.NETLIFY === 'true' || process.env.NODE_ENV === 'production';
+const IS_PRODUCTION_RUNTIME = process.env.NETLIFY === 'true' ||
+  process.env.NODE_ENV === 'production' ||
+  process.env.FIREBASE_DATA_MODE === 'production';
 const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' | 'barangayId' }> = [
   { name: 'regions', idField: 'code' },
   { name: 'provinces', idField: 'code' },
