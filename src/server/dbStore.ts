@@ -145,6 +145,9 @@ class DBStore {
     this.data = this.createDefaultData();
     this.loadPsgcData();
     this.readyPromise = this.initializeFromFirestore();
+    void this.readyPromise.catch(error => {
+      console.error('[dbStore] Initialization failed:', error);
+    });
   }
 
   public async ready() {
@@ -530,20 +533,22 @@ class DBStore {
     }
 
     // High performance search across all 42,000+ official barangays
-    if (filters?.search && this.psgcAllBarangays) {
-      const q = filters.search.toLowerCase();
-      let matches = this.psgcAllBarangays.filter((b: any) =>
-        b.name.toLowerCase().includes(q) ||
-        (b.cityName && b.cityName.toLowerCase().includes(q)) ||
-        (b.provinceName && b.provinceName.toLowerCase().includes(q))
-      );
+    if ((filters?.search || filters?.regionCode) && this.psgcAllBarangays) {
+      const q = filters.search?.toLowerCase() || '';
+      let matches = filters.search
+        ? this.psgcAllBarangays.filter((b: any) =>
+            b.name.toLowerCase().includes(q) ||
+            (b.cityName && b.cityName.toLowerCase().includes(q)) ||
+            (b.provinceName && b.provinceName.toLowerCase().includes(q))
+          )
+        : this.psgcAllBarangays;
       if (filters?.regionCode) {
         matches = matches.filter((b: any) => b.regionCode === filters.regionCode);
       }
       if (filters?.provinceCode) {
         matches = matches.filter((b: any) => b.provinceCode === filters.provinceCode || b.cityCode === filters.provinceCode);
       }
-      return matches.slice(0, 50).map(wrapBarangay);
+      return matches.slice(0, filters.search ? 50 : 100).map(wrapBarangay);
     }
 
     // Filter by province

@@ -491,22 +491,18 @@ export async function createApp(options: AppOptions = {}) {
 
   // Location: Detect Nearest Barangay via Geolocation
   app.post('/api/locations/detect-nearest', async (req, res) => {
-    const { lat, lng } = req.body;
-    if (lat === undefined || lng === undefined) {
-      return res.status(400).json({ error: 'Latitude and longitude are required' });
+    const { lat, lng } = req.body && typeof req.body === 'object' ? req.body : {};
+    if (
+      typeof lat !== 'number' ||
+      typeof lng !== 'number' ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 || lat > 90 ||
+      lng < -180 || lng > 180
+    ) {
+      return res.status(400).json({ error: 'Valid latitude and longitude are required.' });
     }
-
-    const barangays = dbStore.getBarangays();
-    let nearest: any = null;
-    let minDistance = Infinity;
-
-    for (const b of barangays) {
-      const dist = getDistanceKm(lat, lng, b.lat, b.lng);
-      if (dist < minDistance) {
-        minDistance = dist;
-        nearest = { ...b, distanceKm: dist };
-      }
-    }
+    const nearest = dbStore.detectNearestBarangay(lat, lng);
 
     let reverseGeocodedAddress = '';
     try {
@@ -526,8 +522,8 @@ export async function createApp(options: AppOptions = {}) {
 
     res.json({
       success: true,
-      nearestBarangay: nearest,
-      distanceKm: minDistance,
+      nearestBarangay: nearest.nearestBarangay,
+      distanceKm: nearest.distanceKm,
       reverseGeocodedAddress,
     });
   });

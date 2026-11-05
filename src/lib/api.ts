@@ -185,25 +185,16 @@ export const api = {
 
   // Locations
   getRegions: () =>
-    safeCall(
-      () => fetchJSON<Region[]>('/api/locations/regions'),
-      () => clientStore.getRegions()
-    ),
+    fetchJSON<Region[]>('/api/locations/regions'),
 
   getProvinces: (regionCode?: string) =>
-    safeCall(
-      () => fetchJSON<Province[]>(`/api/locations/provinces${regionCode ? `?regionCode=${regionCode}` : ''}`),
-      () => clientStore.getProvinces(regionCode)
-    ),
+    fetchJSON<Province[]>(`/api/locations/provinces${regionCode ? `?regionCode=${encodeURIComponent(regionCode)}` : ''}`),
 
   getCities: (provinceCode?: string, regionCode?: string) => {
     const params = new URLSearchParams();
     if (provinceCode) params.append('provinceCode', provinceCode);
     if (regionCode) params.append('regionCode', regionCode);
-    return safeCall(
-      () => fetchJSON<City[]>(`/api/locations/cities?${params.toString()}`),
-      () => clientStore.getCities(provinceCode, regionCode)
-    );
+    return fetchJSON<City[]>(`/api/locations/cities?${params.toString()}`);
   },
 
   getBarangays: (filters?: { cityCode?: string; provinceCode?: string; regionCode?: string; search?: string }) => {
@@ -212,32 +203,22 @@ export const api = {
     if (filters?.provinceCode) params.append('provinceCode', filters.provinceCode);
     if (filters?.regionCode) params.append('regionCode', filters.regionCode);
     if (filters?.search) params.append('search', filters.search);
-    return safeCall(
-      () => fetchJSON<Barangay[]>(`/api/locations/barangays?${params.toString()}`),
-      () => clientStore.getBarangays(filters)
-    );
+    return fetchJSON<Barangay[]>(`/api/locations/barangays?${params.toString()}`);
   },
 
   getBarangayById: (id: string) =>
-    safeCall(
-      () => fetchJSON<Barangay | undefined>(`/api/locations/barangays/${encodeURIComponent(id)}`),
-      () => clientStore.getBarangays({ search: id }).find(barangay => barangay.id === id)
-    ),
+    fetchJSON<Barangay | undefined>(`/api/locations/barangays/${encodeURIComponent(id)}`),
 
   detectNearestBarangay: (lat: number, lng: number) =>
-    safeCall(
-      () =>
-        fetchJSON<{
-          success: boolean;
-          nearestBarangay: Barangay & { distanceKm: number };
-          distanceKm: number;
-          reverseGeocodedAddress?: string;
-        }>('/api/locations/detect-nearest', {
-          method: 'POST',
-          body: JSON.stringify({ lat, lng }),
-        }),
-      () => clientStore.detectNearestBarangay(lat, lng)
-    ),
+    fetchJSON<{
+      success: boolean;
+      nearestBarangay: Barangay & { distanceKm: number };
+      distanceKm: number;
+      reverseGeocodedAddress?: string;
+    }>('/api/locations/detect-nearest', {
+      method: 'POST',
+      body: JSON.stringify({ lat, lng }),
+    }),
 
   // Rankings
   getRankings: (filters?: { regionCode?: string; provinceCode?: string; cityCode?: string; tier?: string; search?: string }) => {
