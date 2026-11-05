@@ -33,6 +33,7 @@ import {
 import { canTransitionReportStatus, findPotentialDuplicateReports } from './reportWorkflow';
 import { updateRankingHistory } from './rankingHistory';
 import { getReportResolutionMetrics } from '../lib/reportTransparency';
+import { shouldImportLegacyData, shouldLoadDemoData } from './dataPolicy';
 import {
   INITIAL_REGIONS,
   INITIAL_PROVINCES,
@@ -94,6 +95,8 @@ const PSGC_DIR = path.join(DATA_DIR, 'psgc');
 const IS_PRODUCTION_RUNTIME = process.env.NETLIFY === 'true' ||
   process.env.NODE_ENV === 'production' ||
   process.env.FIREBASE_DATA_MODE === 'production';
+const LOAD_DEMO_DATA = shouldLoadDemoData(IS_PRODUCTION_RUNTIME, process.env.ECOBARANGAY_SEED_DEMO_DATA);
+const IMPORT_LEGACY_DATA = shouldImportLegacyData(IS_PRODUCTION_RUNTIME, process.env.ECOBARANGAY_IMPORT_LEGACY_DATA);
 const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' | 'barangayId' }> = [
   { name: 'regions', idField: 'code' },
   { name: 'provinces', idField: 'code' },
@@ -206,36 +209,36 @@ class DBStore {
 
   private createDefaultData(): DBData {
     return JSON.parse(JSON.stringify({
-      regions: IS_PRODUCTION_RUNTIME ? [] : INITIAL_REGIONS,
-      provinces: IS_PRODUCTION_RUNTIME ? [] : INITIAL_PROVINCES,
-      cities: IS_PRODUCTION_RUNTIME ? [] : INITIAL_CITIES,
-      barangays: IS_PRODUCTION_RUNTIME ? [] : INITIAL_BARANGAYS,
+      regions: LOAD_DEMO_DATA ? INITIAL_REGIONS : [],
+      provinces: LOAD_DEMO_DATA ? INITIAL_PROVINCES : [],
+      cities: LOAD_DEMO_DATA ? INITIAL_CITIES : [],
+      barangays: LOAD_DEMO_DATA ? INITIAL_BARANGAYS : [],
       users: [],
-      governmentPages: IS_PRODUCTION_RUNTIME ? [] : INITIAL_GOVERNMENT_PAGES,
-      facilities: IS_PRODUCTION_RUNTIME ? [] : INITIAL_FACILITIES,
-      reports: IS_PRODUCTION_RUNTIME ? [] : INITIAL_REPORTS,
-      events: IS_PRODUCTION_RUNTIME ? [] : INITIAL_EVENTS,
-      challenges: IS_PRODUCTION_RUNTIME ? [] : INITIAL_CHALLENGES,
-      schedules: IS_PRODUCTION_RUNTIME ? [] : INITIAL_SCHEDULES,
-      activityLogs: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ACTIVITY_LOGS,
-      announcements: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ANNOUNCEMENTS,
-      feedPosts: IS_PRODUCTION_RUNTIME ? [] : INITIAL_FEED_POSTS,
-      notifications: IS_PRODUCTION_RUNTIME ? [] : INITIAL_NOTIFICATIONS,
-      calendarEvents: INITIAL_CALENDAR_EVENTS,
-      bulkPickups: INITIAL_BULK_PICKUPS,
-      businesses: IS_PRODUCTION_RUNTIME ? [] : INITIAL_BUSINESSES,
-      organizations: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ORGANIZATIONS,
-      familyGroups: INITIAL_FAMILY_GROUPS,
-      assets: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ASSETS,
-      trees: INITIAL_TREES,
-      alerts: IS_PRODUCTION_RUNTIME ? [] : INITIAL_ALERTS,
-      improvements: IS_PRODUCTION_RUNTIME ? [] : INITIAL_BARANGAY_IMPROVEMENTS,
+      governmentPages: LOAD_DEMO_DATA ? INITIAL_GOVERNMENT_PAGES : [],
+      facilities: LOAD_DEMO_DATA ? INITIAL_FACILITIES : [],
+      reports: LOAD_DEMO_DATA ? INITIAL_REPORTS : [],
+      events: LOAD_DEMO_DATA ? INITIAL_EVENTS : [],
+      challenges: LOAD_DEMO_DATA ? INITIAL_CHALLENGES : [],
+      schedules: LOAD_DEMO_DATA ? INITIAL_SCHEDULES : [],
+      activityLogs: LOAD_DEMO_DATA ? INITIAL_ACTIVITY_LOGS : [],
+      announcements: LOAD_DEMO_DATA ? INITIAL_ANNOUNCEMENTS : [],
+      feedPosts: LOAD_DEMO_DATA ? INITIAL_FEED_POSTS : [],
+      notifications: LOAD_DEMO_DATA ? INITIAL_NOTIFICATIONS : [],
+      calendarEvents: LOAD_DEMO_DATA ? INITIAL_CALENDAR_EVENTS : [],
+      bulkPickups: LOAD_DEMO_DATA ? INITIAL_BULK_PICKUPS : [],
+      businesses: LOAD_DEMO_DATA ? INITIAL_BUSINESSES : [],
+      organizations: LOAD_DEMO_DATA ? INITIAL_ORGANIZATIONS : [],
+      familyGroups: LOAD_DEMO_DATA ? INITIAL_FAMILY_GROUPS : [],
+      assets: LOAD_DEMO_DATA ? INITIAL_ASSETS : [],
+      trees: LOAD_DEMO_DATA ? INITIAL_TREES : [],
+      alerts: LOAD_DEMO_DATA ? INITIAL_ALERTS : [],
+      improvements: LOAD_DEMO_DATA ? INITIAL_BARANGAY_IMPROVEMENTS : [],
       rankingSnapshots: [],
     })) as DBData;
   }
 
   private readLegacyData(): Record<string, unknown> | null {
-    if (IS_PRODUCTION_RUNTIME) return null;
+    if (!IMPORT_LEGACY_DATA) return null;
     if (!fs.existsSync(DB_FILE)) return null;
     const parsed: unknown = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -399,11 +402,13 @@ class DBStore {
   }
 
   public recalculateRanks() {
-    // Sort barangays by score.totalScore descending
-    const sorted = [...this.data.barangays].sort((a, b) => b.score.totalScore - a.score.totalScore);
-    
+    const ranked = this.data.barangays
+      .filter(barangay => Number.isFinite(barangay.score?.totalScore) && barangay.score.totalScore > 0)
+      .sort((a, b) => b.score.totalScore - a.score.totalScore);
+    const unranked = this.data.barangays.filter(barangay => !Number.isFinite(barangay.score?.totalScore) || barangay.score.totalScore <= 0);
+
     // Assign national ranks
-    sorted.forEach((b, idx) => {
+    ranked.forEach((b, idx) => {
       b.score.nationalRank = idx + 1;
       
       // Calculate tier based on normalized score (0-100)
@@ -414,10 +419,13 @@ class DBStore {
       else if (score >= 60) b.score.tier = 'Bronze';
       else b.score.tier = 'Developing';
     });
+    unranked.forEach(barangay => {
+      if (barangay.score) barangay.score.nationalRank = 0;
+    });
 
     // Update main array references
-    this.data.barangays = sorted;
-    this.data.rankingSnapshots = updateRankingHistory(this.data.rankingSnapshots || [], sorted);
+    this.data.barangays = [...ranked, ...unranked];
+    this.data.rankingSnapshots = updateRankingHistory(this.data.rankingSnapshots || [], ranked);
   }
 
   public captureDailyRankingSnapshotIfDue() {
@@ -489,25 +497,25 @@ class DBStore {
         regionName: b.regionName,
         lat: b.lat,
         lng: b.lng,
-        population: IS_PRODUCTION_RUNTIME ? 0 : 4500,
+        population: 0,
         totalUsers: 0,
         score: {
-          wasteManagement: IS_PRODUCTION_RUNTIME ? 0 : 15,
-          recycling: IS_PRODUCTION_RUNTIME ? 0 : 12,
-          communityParticipation: IS_PRODUCTION_RUNTIME ? 0 : 10,
-          reportsResolution: IS_PRODUCTION_RUNTIME ? 0 : 10,
-          cleanupActivities: IS_PRODUCTION_RUNTIME ? 0 : 5,
-          sustainabilityChallenges: IS_PRODUCTION_RUNTIME ? 0 : 2,
-          educationParticipation: IS_PRODUCTION_RUNTIME ? 0 : 2,
-          totalScore: IS_PRODUCTION_RUNTIME ? 0 : 56,
+          wasteManagement: 0,
+          recycling: 0,
+          communityParticipation: 0,
+          reportsResolution: 0,
+          cleanupActivities: 0,
+          sustainabilityChallenges: 0,
+          educationParticipation: 0,
+          totalScore: 0,
           tier: 'Developing',
-          nationalRank: IS_PRODUCTION_RUNTIME ? 0 : 1000,
+          nationalRank: 0,
         },
         totalRecycledKg: 0,
         totalReportsResolved: 0,
         totalReportsReceived: 0,
-        mrfActive: !IS_PRODUCTION_RUNTIME,
-        garbageScheduleDays: IS_PRODUCTION_RUNTIME ? [] : ['Monday', 'Wednesday', 'Friday'],
+        mrfActive: false,
+        garbageScheduleDays: [],
       };
     };
 
@@ -570,25 +578,25 @@ class DBStore {
           regionName: match.regionName,
           lat: match.lat,
           lng: match.lng,
-          population: IS_PRODUCTION_RUNTIME ? 0 : 4500,
+          population: 0,
           totalUsers: 0,
           score: {
-            wasteManagement: IS_PRODUCTION_RUNTIME ? 0 : 15,
-            recycling: IS_PRODUCTION_RUNTIME ? 0 : 12,
-            communityParticipation: IS_PRODUCTION_RUNTIME ? 0 : 10,
-            reportsResolution: IS_PRODUCTION_RUNTIME ? 0 : 10,
-            cleanupActivities: IS_PRODUCTION_RUNTIME ? 0 : 5,
-            sustainabilityChallenges: IS_PRODUCTION_RUNTIME ? 0 : 2,
-            educationParticipation: IS_PRODUCTION_RUNTIME ? 0 : 2,
-            totalScore: IS_PRODUCTION_RUNTIME ? 0 : 56,
+            wasteManagement: 0,
+            recycling: 0,
+            communityParticipation: 0,
+            reportsResolution: 0,
+            cleanupActivities: 0,
+            sustainabilityChallenges: 0,
+            educationParticipation: 0,
+            totalScore: 0,
             tier: 'Developing',
-            nationalRank: IS_PRODUCTION_RUNTIME ? 0 : 1000,
+            nationalRank: 0,
           },
           totalRecycledKg: 0,
           totalReportsResolved: 0,
           totalReportsReceived: 0,
-          mrfActive: !IS_PRODUCTION_RUNTIME,
-          garbageScheduleDays: IS_PRODUCTION_RUNTIME ? [] : ['Monday', 'Wednesday', 'Friday'],
+          mrfActive: false,
+          garbageScheduleDays: [],
         };
       }
     }
@@ -658,7 +666,7 @@ class DBStore {
       ...userData,
       id: `user-${Date.now()}`,
       ecoPoints: 0,
-      ecoScore: 60,
+      ecoScore: 0,
       kgRecycled: 0,
       challengesCompleted: 0,
       cleanupActivitiesCount: 0,
@@ -1490,7 +1498,7 @@ class DBStore {
   // Notifications System
   public getNotifications(barangayId?: string, userId?: string) {
     if (!this.data.notifications) {
-      this.data.notifications = INITIAL_NOTIFICATIONS;
+      this.data.notifications = [];
     }
     let list = this.data.notifications;
     if (barangayId) {
@@ -1502,7 +1510,7 @@ class DBStore {
 
   public createNotification(data: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) {
     if (!this.data.notifications) {
-      this.data.notifications = INITIAL_NOTIFICATIONS;
+      this.data.notifications = [];
     }
     const newNotif: AppNotification = {
       ...data,
@@ -1517,7 +1525,7 @@ class DBStore {
 
   public markNotificationAsRead(id: string) {
     if (!this.data.notifications) {
-      this.data.notifications = INITIAL_NOTIFICATIONS;
+      this.data.notifications = [];
     }
     const notif = this.data.notifications.find(n => n.id === id);
     if (notif) {
@@ -1529,7 +1537,7 @@ class DBStore {
 
   public markAllNotificationsAsRead(barangayId?: string, userId?: string) {
     if (!this.data.notifications) {
-      this.data.notifications = INITIAL_NOTIFICATIONS;
+      this.data.notifications = [];
     }
     this.data.notifications.forEach(n => {
       if ((!barangayId || n.barangayId === barangayId) &&
@@ -1713,27 +1721,33 @@ class DBStore {
   }
 
   public getPartnerOrganizations(barangayId?: string): PartnerOrganization[] {
-    if (!this.data.organizations) this.data.organizations = INITIAL_ORGANIZATIONS;
+    if (!this.data.organizations) this.data.organizations = [];
     let list = this.data.organizations;
     if (barangayId) list = list.filter(o => !o.barangayId || o.barangayId === barangayId);
     return list;
   }
 
-  public createPartnerOrganization(data: any): PartnerOrganization {
-    if (!this.data.organizations) this.data.organizations = INITIAL_ORGANIZATIONS;
+  public createPartnerOrganization(data: Partial<PartnerOrganization>): PartnerOrganization {
+    if (!this.data.organizations) this.data.organizations = [];
     const o: PartnerOrganization = {
       id: `org-${Date.now()}`,
       name: data.name || '',
-      type: data.type || 'NGO',
-      description: data.description || 'Environmental initiative partner',
+      type: data.type || (
+        data.category === 'School / University'
+          ? 'School'
+          : data.category === 'Environmental NGO'
+          ? 'NGO'
+          : 'Community Organization'
+      ),
+      description: data.description || '',
       contactEmail: data.contactEmail || '',
       barangayId: data.barangayId,
-      verified: true,
+      verified: false,
       eventsCreatedCount: 0,
       acronym: data.acronym,
       category: data.category,
       scope: data.scope,
-      activeProjectsCount: data.activeProjectsCount || 1,
+      activeProjectsCount: 0,
     };
     this.data.organizations.push(o);
     this.save();

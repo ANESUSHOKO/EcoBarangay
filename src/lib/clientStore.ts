@@ -37,46 +37,42 @@ import {
   INITIAL_REGIONS,
   INITIAL_PROVINCES,
   INITIAL_CITIES,
-  INITIAL_BARANGAYS,
-  INITIAL_USERS,
-  INITIAL_FACILITIES,
-  INITIAL_REPORTS,
-  INITIAL_EVENTS,
-  INITIAL_CHALLENGES,
-  INITIAL_SCHEDULES,
-  INITIAL_ACTIVITY_LOGS,
-  INITIAL_ANNOUNCEMENTS,
-  INITIAL_FEED_POSTS,
-  INITIAL_GOVERNMENT_PAGES,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_PROJECTS,
-  INITIAL_POLLS,
-  INITIAL_ASSETS,
-  INITIAL_ALERTS,
-  INITIAL_BULK_PICKUPS,
-  INITIAL_BUSINESSES,
-  INITIAL_ORGANIZATIONS,
-  INITIAL_FAMILY_GROUPS,
-  INITIAL_TREES,
-  INITIAL_CALENDAR_EVENTS,
-  INITIAL_BARANGAY_IMPROVEMENTS
 } from '../server/initialData';
 
-const STORE_VERSION = 'ecobarangay_v2_clean_prod';
+const STORE_VERSION = 'ecobarangay_v3_no_demo_fallback';
+const CLIENT_CACHE_KEYS = [
+  'ecobarangay_users',
+  'ecobarangay_barangays',
+  'ecobarangay_facilities',
+  'ecobarangay_reports',
+  'ecobarangay_events',
+  'ecobarangay_challenges',
+  'ecobarangay_schedules',
+  'ecobarangay_activityLogs',
+  'ecobarangay_announcements',
+  'ecobarangay_feedPosts',
+  'ecobarangay_govPages',
+  'ecobarangay_notifications',
+  'ecobarangay_projects',
+  'ecobarangay_polls',
+  'ecobarangay_assets',
+  'ecobarangay_alerts',
+  'ecobarangay_bulkPickups',
+  'ecobarangay_businesses',
+  'ecobarangay_organizations',
+  'ecobarangay_familyGroups',
+  'ecobarangay_trees',
+  'ecobarangay_calendarEvents',
+  'ecobarangay_improvements',
+  'ecobarangay_current_user_id',
+];
 
 if (typeof window !== 'undefined' && localStorage.getItem('ecobarangay_store_version') !== STORE_VERSION) {
   try {
-    localStorage.removeItem('ecobarangay_users');
-    localStorage.removeItem('ecobarangay_reports');
-    localStorage.removeItem('ecobarangay_activityLogs');
-    localStorage.removeItem('ecobarangay_bulkPickups');
-    localStorage.removeItem('ecobarangay_familyGroups');
-    localStorage.removeItem('ecobarangay_calendarEvents');
-    localStorage.removeItem('ecobarangay_notifications');
-    localStorage.removeItem('ecobarangay_current_user_id');
+    CLIENT_CACHE_KEYS.forEach(key => localStorage.removeItem(key));
     localStorage.setItem('ecobarangay_store_version', STORE_VERSION);
   } catch (e) {
-    console.warn('Could not reset demo cache', e);
+    console.warn('Could not reset the local application cache', e);
   }
 }
 
@@ -116,31 +112,31 @@ function calculateHaversineDistanceKm(lat1: number, lon1: number, lat2: number, 
 }
 
 class ClientStore {
-  private users: User[] = loadStorage('ecobarangay_users', INITIAL_USERS);
-  private barangays: Barangay[] = loadStorage('ecobarangay_barangays', INITIAL_BARANGAYS);
-  private facilities: Facility[] = loadStorage('ecobarangay_facilities', INITIAL_FACILITIES);
-  private reports: EnvironmentalReport[] = loadStorage('ecobarangay_reports', INITIAL_REPORTS);
-  private events: Event[] = loadStorage('ecobarangay_events', INITIAL_EVENTS);
-  private challenges: Challenge[] = loadStorage('ecobarangay_challenges', INITIAL_CHALLENGES);
-  private schedules: GarbageSchedule[] = loadStorage('ecobarangay_schedules', INITIAL_SCHEDULES);
-  private activityLogs: UserActivityLog[] = loadStorage('ecobarangay_activityLogs', INITIAL_ACTIVITY_LOGS);
-  private announcements: Announcement[] = loadStorage('ecobarangay_announcements', INITIAL_ANNOUNCEMENTS);
-  private feedPosts: FeedPost[] = loadStorage('ecobarangay_feedPosts', INITIAL_FEED_POSTS);
-  private govPages: GovernmentPage[] = loadStorage('ecobarangay_govPages', INITIAL_GOVERNMENT_PAGES);
-  private notifications: AppNotification[] = loadStorage('ecobarangay_notifications', INITIAL_NOTIFICATIONS);
+  private users: User[] = loadStorage('ecobarangay_users', []);
+  private barangays: Barangay[] = loadStorage('ecobarangay_barangays', []);
+  private facilities: Facility[] = loadStorage('ecobarangay_facilities', []);
+  private reports: EnvironmentalReport[] = loadStorage('ecobarangay_reports', []);
+  private events: Event[] = loadStorage('ecobarangay_events', []);
+  private challenges: Challenge[] = loadStorage('ecobarangay_challenges', []);
+  private schedules: GarbageSchedule[] = loadStorage('ecobarangay_schedules', []);
+  private activityLogs: UserActivityLog[] = loadStorage('ecobarangay_activityLogs', []);
+  private announcements: Announcement[] = loadStorage('ecobarangay_announcements', []);
+  private feedPosts: FeedPost[] = loadStorage('ecobarangay_feedPosts', []);
+  private govPages: GovernmentPage[] = loadStorage('ecobarangay_govPages', []);
+  private notifications: AppNotification[] = loadStorage('ecobarangay_notifications', []);
 
   // New collections for 20 features
-  private projects: EcoProject[] = loadStorage('ecobarangay_projects', INITIAL_PROJECTS);
-  private polls: CommunityPoll[] = loadStorage('ecobarangay_polls', INITIAL_POLLS);
-  private assets: EnvironmentalAsset[] = loadStorage('ecobarangay_assets', INITIAL_ASSETS);
-  private alerts: EnvironmentalAlert[] = loadStorage('ecobarangay_alerts', INITIAL_ALERTS);
-  private bulkPickups: BulkWastePickupRequest[] = loadStorage('ecobarangay_bulkPickups', INITIAL_BULK_PICKUPS);
-  private businesses: EcoBusiness[] = loadStorage('ecobarangay_businesses', INITIAL_BUSINESSES);
-  private organizations: PartnerOrganization[] = loadStorage('ecobarangay_organizations', INITIAL_ORGANIZATIONS);
-  private familyGroups: FamilyGroup[] = loadStorage('ecobarangay_familyGroups', INITIAL_FAMILY_GROUPS);
-  private trees: TreeItem[] = loadStorage('ecobarangay_trees', INITIAL_TREES);
-  private calendarEvents: PersonalCalendarEvent[] = loadStorage('ecobarangay_calendarEvents', INITIAL_CALENDAR_EVENTS);
-  private improvements: BarangayImprovement[] = loadStorage('ecobarangay_improvements', INITIAL_BARANGAY_IMPROVEMENTS);
+  private projects: EcoProject[] = loadStorage('ecobarangay_projects', []);
+  private polls: CommunityPoll[] = loadStorage('ecobarangay_polls', []);
+  private assets: EnvironmentalAsset[] = loadStorage('ecobarangay_assets', []);
+  private alerts: EnvironmentalAlert[] = loadStorage('ecobarangay_alerts', []);
+  private bulkPickups: BulkWastePickupRequest[] = loadStorage('ecobarangay_bulkPickups', []);
+  private businesses: EcoBusiness[] = loadStorage('ecobarangay_businesses', []);
+  private organizations: PartnerOrganization[] = loadStorage('ecobarangay_organizations', []);
+  private familyGroups: FamilyGroup[] = loadStorage('ecobarangay_familyGroups', []);
+  private trees: TreeItem[] = loadStorage('ecobarangay_trees', []);
+  private calendarEvents: PersonalCalendarEvent[] = loadStorage('ecobarangay_calendarEvents', []);
+  private improvements: BarangayImprovement[] = loadStorage('ecobarangay_improvements', []);
 
   private saveUsers() { saveStorage('ecobarangay_users', this.users); }
   private saveBarangays() { saveStorage('ecobarangay_barangays', this.barangays); }

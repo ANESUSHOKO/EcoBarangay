@@ -99,7 +99,7 @@ export const OfficialDashboard: React.FC<OfficialDashboardProps> = ({
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
   const [eventDesc, setEventDesc] = useState('');
-  const [eventDate, setEventDate] = useState('2026-08-20');
+  const [eventDate, setEventDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [eventTime, setEventTime] = useState('07:00 AM - 10:00 AM');
   const [eventCategory, setEventCategory] = useState<'Cleanup' | 'Tree Planting' | 'Workshop' | 'Recycling Drive'>('Cleanup');
 

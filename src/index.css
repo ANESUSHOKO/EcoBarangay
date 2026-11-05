@@ -21,6 +21,30 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  :focus-visible {
+    outline: 3px solid #047857;
+    outline-offset: 2px;
+  }
+
+  .dark :focus-visible {
+    outline-color: #34d399;
+  }
+
+  .auth-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+  .auth-form select,
+  .auth-form textarea,
+  .auth-form button[type="submit"] {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  .auth-form input[type="checkbox"],
+  .auth-form input[type="radio"] {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: none;
+  }
+
   .dark {
     --primary: #10b981;
     --primary-dark: #059669;
@@ -116,6 +140,17 @@
   .dark input::-webkit-search-cancel-button {
     filter: invert(1);
     cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

@@ -4,6 +4,7 @@ import {
   Barangay,
   Facility,
   EnvironmentalReport,
+  ReportCategory,
   ReportStatus,
   Event,
   Challenge,
@@ -32,7 +33,8 @@ import {
   FacilityStatus,
   PhotoValidationResult,
   AIChatMessage,
-  RankingSnapshot
+  RankingSnapshot,
+  ReportAnalysisSuggestion
 } from '../types';
 import { clientStore } from './clientStore';
 import { auth } from './firebase';
@@ -53,48 +55,47 @@ interface TransparencyMetrics extends ReportResolutionMetrics {
 
 let backendServerChecked = false;
 let isServerAvailable = false;
+let lastAvailabilityCheck = 0;
+let availabilityCheck: Promise<boolean> | null = null;
+const LOCAL_FALLBACK_ENABLED = import.meta.env.DEV && import.meta.env.VITE_ENABLE_LOCAL_FALLBACK === 'true';
 
 async function checkServerAvailability(): Promise<boolean> {
   if (backendServerChecked) return isServerAvailable;
+  if (availabilityCheck) return availabilityCheck;
+  if (Date.now() - lastAvailabilityCheck < 3_000) return false;
 
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname.toLowerCase();
-    if (
-      host.includes('netlify.app') ||
-      host.includes('github.io') ||
-      host.includes('vercel.app') ||
-      host.includes('pages.dev') ||
-      host.includes('surge.sh')
-    ) {
-      isServerAvailable = false;
-      backendServerChecked = true;
-      return false;
+  availabilityCheck = (async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1000);
+      const res = await fetch('/api/health', { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) return false;
+      const health = await res.json().catch(() => null);
+      if (health?.status === 'ok' && health?.service === 'EcoBarangay API') {
+        isServerAvailable = true;
+        backendServerChecked = true;
+        return true;
+      }
+    } catch {
+      // The health check is retried after a short cooldown.
     }
-  }
-
+    isServerAvailable = false;
+    return false;
+  })();
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1000);
-    const res = await fetch('/api/stats/summary', { signal: controller.signal });
-    clearTimeout(timeout);
-    if (res.ok) {
-      isServerAvailable = true;
-      backendServerChecked = true;
-      return true;
-    }
-  } catch (e) {
-    // Backend unreachable
+    return await availabilityCheck;
+  } finally {
+    lastAvailabilityCheck = Date.now();
+    availabilityCheck = null;
   }
-
-  isServerAvailable = false;
-  backendServerChecked = true;
-  return false;
 }
 
 async function safeCall<T>(remoteCall: () => Promise<T>, fallbackCall: () => T | Promise<T>): Promise<T> {
   const hasServer = await checkServerAvailability();
   if (!hasServer) {
-    return Promise.resolve(fallbackCall());
+    if (LOCAL_FALLBACK_ENABLED) return Promise.resolve(fallbackCall());
+    throw new Error('The EcoBarangay API is unavailable. Check the connection and try again.');
   }
 
   return remoteCall();
@@ -216,6 +217,12 @@ export const api = {
       () => clientStore.getBarangays(filters)
     );
   },
+
+  getBarangayById: (id: string) =>
+    safeCall(
+      () => fetchJSON<Barangay | undefined>(`/api/locations/barangays/${encodeURIComponent(id)}`),
+      () => clientStore.getBarangays({ search: id }).find(barangay => barangay.id === id)
+    ),
 
   detectNearestBarangay: (lat: number, lng: number) =>
     safeCall(
@@ -988,7 +995,17 @@ export const api = {
       () => clientStore.getMostImprovedBarangays()
     ),
 
-  // AI Capabilities: Photo Verification & Eco Assistant
+  // AI Capabilities: report suggestions, photo assessment & Eco Assistant
+  analyzeReport: (description: string, category: ReportCategory) =>
+    safeCall(
+      () =>
+        fetchJSON<ReportAnalysisSuggestion>('/api/ai/analyze-report', {
+          method: 'POST',
+          body: JSON.stringify({ description, category }),
+        }),
+      () => Promise.reject(new Error('AI report analysis is unavailable because the application API is not connected.'))
+    ),
+
   validateReportPhoto: (imageData: string, mimeType?: string) =>
     safeCall(
       () =>
