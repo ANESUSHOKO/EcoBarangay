@@ -30,6 +30,34 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 
+function getAuthErrorMessage(error: unknown): string {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : '';
+  const message = error instanceof Error ? error.message : '';
+
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'The email or password is incorrect. Check your details and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Email and password sign-in is disabled in Firebase. Enable Email/Password in Firebase Authentication settings.';
+    case 'auth/network-request-failed':
+      return 'Could not connect to Firebase. Check your internet connection and try again.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Wait a little while, then try again.';
+    case 'auth/email-already-in-use':
+      return 'An account already uses this email. Sign in or reset its password instead.';
+    case 'auth/weak-password':
+      return 'Choose a stronger password with at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'Enter a valid email address.';
+    default:
+      return message || 'Something went wrong. Please try again.';
+  }
+}
+
 interface AuthPageProps {
   onSuccess: (user: User) => void;
   onOpenLocationModal: () => void;
@@ -51,7 +79,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   selectedBarangay,
 }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>('login');
-  const [loginPortal, setLoginPortal] = useState<'community' | 'official' | 'admin'>('community');
+  const [loginPortal, setLoginPortal] = useState<'community' | 'official'>('community');
   const [registerAsOfficial, setRegisterAsOfficial] = useState(false);
   // Form states - Login & Register
   const [email, setEmail] = useState('');
@@ -150,24 +178,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       }
 
       const user = await api.getCurrentUser();
-      if (loginPortal === 'official' && (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial)) {
+      if (loginPortal === 'official' &&
+          user.role !== 'SYSTEM_ADMIN' &&
+          (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial)) {
         await signOut(auth);
         setError('This account does not have approved barangay official access yet.');
         return;
       }
-      if (loginPortal === 'admin' && user.role !== 'SYSTEM_ADMIN') {
-        await signOut(auth);
-        setError('This account is not configured for system administrator access.');
-        return;
-      }
       if (loginPortal === 'community' && user.role !== 'RESIDENT') {
         await signOut(auth);
-        setError('Choose the matching privileged portal to sign in to this account.');
+        setError('This account uses the Barangay Office sign-in. Select Barangay Office to continue.');
         return;
       }
       onSuccess(user);
-    } catch (err: any) {
-      setError(err.message || 'Unable to sign in. Check your credentials and try again.');
+    } catch (err) {
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -189,8 +214,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       await sendPasswordResetEmail(auth, forgotEmail.trim(), { url: window.location.origin });
       setMode('login');
       setSuccessInfo('If an account exists for that address, Firebase has sent a password-reset link.');
-    } catch (err: any) {
-      setError(err.message || 'Unable to send a password-reset email.');
+    } catch (err) {
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -245,8 +270,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         await deleteUser(firebaseUser);
         throw error;
       }
-    } catch (err: any) {
-      setError(err.message || 'Registration failed.');
+    } catch (err) {
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -267,7 +292,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               ? 'Reset Account Password'
               : 'Register Your Household'}
           </h2>
-          <p className="text-xs text-emerald-200 leading-relaxed">
+          <p className="text-sm text-emerald-200 leading-relaxed">
             {mode === 'login'
               ? 'Enter your account credentials to access your dashboard.'
               : mode === 'forgot_password'
@@ -279,14 +304,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         {/* Form Body */}
         <div className="p-8 space-y-5">
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800 font-semibold flex items-center gap-2 animate-in fade-in">
+            <div role="alert" aria-live="assertive" className="p-4 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-800 font-semibold flex items-center gap-2 animate-in fade-in">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successInfo && (
-            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 font-medium flex items-center gap-2 animate-in fade-in">
+            <div role="status" aria-live="polite" className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-800 font-medium flex items-center gap-2 animate-in fade-in">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{successInfo}</span>
             </div>
@@ -294,7 +319,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
           {/* FORGOT PASSWORD MODE */}
           {mode === 'forgot_password' ? (
-              <form onSubmit={handleRequestPasswordReset} className="space-y-4">
+              <form onSubmit={handleRequestPasswordReset} className="auth-form space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Registered Email Address</label>
                   <div className="relative">
@@ -340,63 +365,54 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 </div>
               </form>
           ) : mode === 'login' ? (
-              <form onSubmit={handleLogin} className="space-y-4">
-                <fieldset className="grid grid-cols-3 gap-2">
+              <form onSubmit={handleLogin} className="auth-form space-y-4">
+                <fieldset className="grid grid-cols-2 gap-2">
                   <legend className="sr-only">Choose sign-in portal</legend>
                   <button
                     type="button"
                     onClick={() => setLoginPortal('community')}
                     aria-pressed={loginPortal === 'community'}
-                    className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${loginPortal === 'community' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                    className={`min-h-12 rounded-xl border px-3 py-3 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${loginPortal === 'community' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
                   >
-                    Community
+                    Resident / Community
                   </button>
                   <button
                     type="button"
                     onClick={() => setLoginPortal('official')}
                     aria-pressed={loginPortal === 'official'}
-                    className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${loginPortal === 'official' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                    className={`min-h-12 rounded-xl border px-3 py-3 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${loginPortal === 'official' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
                   >
-                    Official
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLoginPortal('admin')}
-                    aria-pressed={loginPortal === 'admin'}
-                    className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${loginPortal === 'admin' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
-                  >
-                    Admin
+                    Barangay Office
                   </button>
                 </fieldset>
                 {loginPortal !== 'community' && (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                    {loginPortal === 'official'
-                      ? 'Official accounts require administrator approval and use their own account password.'
-                      : 'Administrator access requires the configured email and Firebase account UID.'}
-                    {' '}Use your own account password; shared passwords are not used.
+                    Approved Barangay Officials and configured system administrators both sign in here with their own account. Official access must be approved; shared passwords are not used.
                   </p>
                 )}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+                  <label htmlFor="login-email" className="block text-sm font-bold text-slate-700 mb-1">Email Address</label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       type="email"
+                      id="login-email"
                       required
+                      autoComplete="email"
                       placeholder="resident@ecobarangay.ph"
                       value={email}
                       onChange={e => {
                         setEmail(e.target.value);
                         if (error) setError(null);
                       }}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      className="min-h-12 w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     />
                   </div>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">Account Password</label>
+                    <label htmlFor="login-password" className="block text-sm font-bold text-slate-700">Account Password</label>
                     <button
                       type="button"
                       onClick={() => {
@@ -414,19 +430,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       type={showPassword ? 'text' : 'password'}
+                      id="login-password"
                       required
+                      autoComplete="current-password"
                       placeholder="Enter your account password"
                       value={password}
                       onChange={e => {
                         setPassword(e.target.value);
                         if (error) setError(null);
                       }}
-                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      className="min-h-12 w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 min-h-10 min-w-10 flex items-center justify-center text-slate-500 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700 rounded-lg"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -436,14 +455,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="min-h-12 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-base font-bold transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
                 >
                   {loading ? 'Signing In...' : 'Sign In'}
                 </button>
               </form>
           ) : (
             /* REGISTER MODE */
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="auth-form space-y-4">
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900">
                 New accounts are resident accounts. Barangay official access requires administrator approval.
               </div>
@@ -456,7 +475,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 />
                 <span>
                   <span className="block font-bold">Apply for Barangay Official access</span>
-                  Your account will remain a resident account until an administrator approves this request for the selected barangay.
+                  If approved, your account receives platform-wide administrator access across all barangays. Apply only if you are authorized; your resident account remains unchanged until approval.
                 </span>
               </label>
 
@@ -587,7 +606,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Maria Santos"
+                    placeholder="e.g. Alex Reyes"
                     value={fullName}
                     onChange={e => {
                       setFullName(e.target.value);
@@ -605,7 +624,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <input
                     type="email"
                     required
-                    placeholder="maria.santos@gmail.com"
+                    placeholder="name@example.com"
                     value={email}
                     onChange={e => {
                       setEmail(e.target.value);

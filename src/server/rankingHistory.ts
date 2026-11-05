@@ -9,7 +9,10 @@ export function updateRankingHistory(
   now = new Date(),
 ): RankingSnapshot[] {
   const snapshotDate = now.toISOString().slice(0, 10);
-  const entries = rankedBarangays.slice(0, MAX_RANKED_BARANGAYS_PER_SNAPSHOT).map(barangay => ({
+  const entries = rankedBarangays
+    .filter(barangay => Number.isFinite(barangay.score?.totalScore) && barangay.score.totalScore > 0)
+    .slice(0, MAX_RANKED_BARANGAYS_PER_SNAPSHOT)
+    .map(barangay => ({
     barangayId: barangay.id,
     barangayName: barangay.name,
     cityName: barangay.cityName,
@@ -18,7 +21,7 @@ export function updateRankingHistory(
     population: barangay.population,
     score: { ...barangay.score },
     dataStatus: 'Recorded; not independently verified' as const,
-  }));
+    }));
   const snapshot: RankingSnapshot = {
     id: `rankings-${snapshotDate}`,
     snapshotDate,

@@ -24,6 +24,16 @@ test('ranking history replaces the same-day snapshot and retains the top 100', (
   );
 });
 
+test('ranking history excludes barangays without recorded score data', () => {
+  const unscored = {
+    ...INITIAL_BARANGAYS[0],
+    score: { ...INITIAL_BARANGAYS[0].score, totalScore: 0 },
+  };
+  const snapshot = updateRankingHistory([], [unscored], new Date('2026-04-04T10:00:00.000Z'));
+
+  assert.equal(snapshot[0].entries.length, 0);
+});
+
 test('ranking history retains at most 365 daily snapshots', () => {
   const now = new Date('2026-12-31T12:00:00.000Z');
   const existing = Array.from({ length: 366 }, (_, index) => {

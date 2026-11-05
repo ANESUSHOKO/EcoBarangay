@@ -688,6 +688,14 @@ export interface PhotoValidationResult {
   suggestedDescription?: string;
 }
 
+export interface ReportAnalysisSuggestion {
+  summary: string;
+  suggestedCategory: ReportCategory;
+  suggestedUrgency: ReportUrgency;
+  confidence: number;
+  safetyNote: string;
+}
+
 export interface AIChatMessage {
   id?: string;
   role: 'user' | 'model';

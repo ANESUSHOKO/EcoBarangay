@@ -3,6 +3,7 @@ import { api } from './lib/api';
 import { User, Barangay, Language } from './types';
 import { ThemeMode, getInitialTheme, setThemeMode } from './lib/theme';
 import { auth } from './lib/firebase';
+import { hasSystemAdminCapabilities } from './server/accessControl';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav } from './components';
 import {
@@ -22,6 +23,7 @@ import {
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentBarangay, setCurrentBarangay] = useState<Barangay | null>(null);
+  const [officeView, setOfficeView] = useState<'operations' | 'administration'>('operations');
 
   // Initial tab from URL hash if available
   const getTabFromHash = () => {
@@ -81,13 +83,15 @@ export function App() {
 
   // Initial load
   useEffect(() => {
-    api.getBarangays().then(barangays => {
-      if (barangays.length > 0) {
-        const savedBrgyId = localStorage.getItem('ecobarangay_selected_barangay_id');
-        const match = (savedBrgyId ? barangays.find(b => b.id === savedBrgyId) : null) || barangays[0];
-        setCurrentBarangay(match);
-      }
-    }).catch(console.error);
+    const savedBrgyId = localStorage.getItem('ecobarangay_selected_barangay_id');
+    const initialBarangay = savedBrgyId
+      ? api.getBarangayById(savedBrgyId).then(barangay => {
+          if (barangay) setCurrentBarangay(barangay);
+        })
+      : api.getBarangays().then(barangays => {
+          if (barangays[0]) setCurrentBarangay(barangays[0]);
+        });
+    void initialBarangay.catch(console.error);
 
     return onAuthStateChanged(auth, async firebaseUser => {
       if (!firebaseUser) {
@@ -103,10 +107,10 @@ export function App() {
       try {
         const user = await api.getCurrentUser();
         setCurrentUser(user);
+        setOfficeView(user.role === 'SYSTEM_ADMIN' ? 'administration' : 'operations');
         localStorage.setItem('ecobarangay_current_user_id', user.id);
-        const barangays = await api.getBarangays();
-        const match = barangays.find(b => b.id === user.barangayId);
-        if (match) setCurrentBarangay(match);
+        const barangay = await api.getBarangayById(user.barangayId);
+        if (barangay) setCurrentBarangay(barangay);
       } catch (error) {
         console.error('Unable to restore the authenticated user profile:', error);
         setCurrentUser(null);
@@ -117,14 +121,14 @@ export function App() {
 
   const handleUserLogin = (user: User) => {
     setCurrentUser(user);
+    setOfficeView(user.role === 'SYSTEM_ADMIN' ? 'administration' : 'operations');
     try {
       localStorage.setItem('ecobarangay_current_user_id', user.id);
     } catch (e) {
       console.warn(e);
     }
-    api.getBarangays().then(barangays => {
-      const match = barangays.find(b => b.id === user.barangayId);
-      if (match) setCurrentBarangay(match);
+    api.getBarangayById(user.barangayId).then(barangay => {
+      if (barangay) setCurrentBarangay(barangay);
     }).catch(console.error);
     setActiveTab('dashboard');
   };
@@ -159,8 +163,7 @@ export function App() {
 
   const handleRefreshBarangayData = async () => {
     if (currentBarangay) {
-      const barangays = await api.getBarangays();
-      const updated = barangays.find(b => b.id === currentBarangay.id);
+      const updated = await api.getBarangayById(currentBarangay.id);
       if (updated) setCurrentBarangay(updated);
     }
   };
@@ -223,19 +226,40 @@ export function App() {
               />
             )}
 
-            {currentUser.role === 'BARANGAY_OFFICIAL' && (
-              <OfficialDashboard
-                currentUser={currentUser}
-                currentBarangay={currentBarangay}
-                onRefreshData={handleRefreshBarangayData}
-              />
-            )}
-
-            {currentUser.role === 'SYSTEM_ADMIN' && (
-              <AdminDashboard
-                currentUser={currentUser}
-                onRefreshData={handleRefreshBarangayData}
-              />
+            {hasSystemAdminCapabilities(currentUser) && (
+              <section className="space-y-5">
+                <div role="tablist" aria-label="Barangay Office dashboard" className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={officeView === 'operations'}
+                    onClick={() => setOfficeView('operations')}
+                    className={`min-h-11 rounded-xl border px-4 py-2.5 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${officeView === 'operations' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-300 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}
+                  >
+                    Barangay operations
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={officeView === 'administration'}
+                    onClick={() => setOfficeView('administration')}
+                    className={`min-h-11 rounded-xl border px-4 py-2.5 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${officeView === 'administration' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-300 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}
+                  >
+                    Platform administration
+                  </button>
+                </div>
+                {officeView === 'operations' ? (
+                  <OfficialDashboard
+                    currentUser={currentUser}
+                    currentBarangay={currentBarangay}
+                    onRefreshData={handleRefreshBarangayData}
+                  />
+                ) : (
+                  <AdminDashboard
+                    currentUser={currentUser}
+                  />
+                )}
+              </section>
             )}
           </>
         )}

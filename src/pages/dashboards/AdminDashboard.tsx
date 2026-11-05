@@ -43,12 +43,11 @@ import {
 
 interface AdminDashboardProps {
   currentUser: User;
-  onRefreshData: () => void;
 }
 
 type AdminTab = 'analytics' | 'users' | 'locations' | 'facilities' | 'rankings' | 'governance' | 'institutions';
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onRefreshData }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
   const [users, setUsers] = useState<User[]>([]);
   const [barangays, setBarangays] = useState<Barangay[]>([]);
@@ -57,22 +56,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
 
-  // Governance / Platform state
-  const [platformNotice, setPlatformNotice] = useState('National Clean Barangay Month active. Ensure all MRF records are synced.');
-  const [pointMultiplier, setPointMultiplier] = useState(1.0);
-  const [requirePhotoVerification, setRequirePhotoVerification] = useState(true);
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
-
-  // Timeframe selector for analytics
-
-  // New Barangay Modal State
-  const [showAddBarangayModal, setShowAddBarangayModal] = useState(false);
-  const [newBrgyName, setNewBrgyName] = useState('');
-  const [newBrgyCity, setNewBrgyCity] = useState('Pasig City');
-  const [newBrgyProvince, setNewBrgyProvince] = useState('Metro Manila');
-  const [newBrgyRegion, setNewBrgyRegion] = useState('NCR');
-  const [newBrgyPopulation, setNewBrgyPopulation] = useState('15000');
 
   // New Partner / Institutional Org Modal
   const [showAddOrgModal, setShowAddOrgModal] = useState(false);
@@ -80,7 +65,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
   const [orgAcronym, setOrgAcronym] = useState('');
   const [orgCategory, setOrgCategory] = useState<'School / University' | 'Environmental NGO' | 'Partner LGU' | 'National Agency'>('School / University');
   const [orgDesc, setOrgDesc] = useState('');
-  const [orgScope, setOrgScope] = useState('Metro Manila');
+  const [orgScope, setOrgScope] = useState('');
 
   useEffect(() => {
     loadAllData();
@@ -127,10 +112,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
   }, [barangays]);
   const registeredResidents = users.filter(user => user.role === 'RESIDENT').length;
   const mrfAndHubCount = facilities.filter(facility => ['mrf', 'recycling', 'junkshop', 'ewaste', 'composting'].includes(facility.category)).length;
+  const scoredBarangayCount = barangays.filter(barangay => barangay.score?.totalScore > 0).length;
 
   const tierDistribution = useMemo(() => {
     const counts = { Platinum: 0, Gold: 0, Silver: 0, Bronze: 0, Developing: 0 };
-    barangays.forEach(b => {
+    barangays.filter(b => b.score?.totalScore > 0).forEach(b => {
       const tier = b.score?.tier || 'Developing';
       if (counts[tier] !== undefined) {
         counts[tier]++;
@@ -149,68 +135,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
 
   const handleCreateInstitutionalOrg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orgName) return;
+    if (!orgName.trim()) return;
     try {
       await api.createPartnerOrganization({
-        name: orgName,
-        acronym: orgAcronym || orgName.substring(0, 4).toUpperCase(),
-        category: orgCategory as any,
-        description: orgDesc || `${orgCategory} partner in Philippine zero-waste and sustainability initiative.`,
-        scope: orgScope,
-        activeProjectsCount: 1,
-        verified: true,
-        logoUrl: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?w=200'
+        name: orgName.trim(),
+        acronym: orgAcronym.trim() || orgName.trim().substring(0, 4).toUpperCase(),
+        category: orgCategory,
+        description: orgDesc.trim(),
+        scope: orgScope.trim(),
+        activeProjectsCount: 0,
+        verified: false,
       });
       setShowAddOrgModal(false);
       setOrgName('');
       setOrgAcronym('');
       setOrgDesc('');
-      notifySuccess(`New Institutional Partner "${orgName}" successfully registered.`);
+      setOrgScope('');
+      notifySuccess(`"${orgName.trim()}" was added and is awaiting verification.`);
       loadAllData();
     } catch (err) {
-      console.error(err);
+      setAdminActionError(err instanceof Error ? err.message : 'Could not add the partner.');
     }
-  };
-
-  const handleUpdateBarangayScore = (barangayId: string, delta: number) => {
-    setBarangays(prev =>
-      prev.map(b => {
-        if (b.id === barangayId) {
-          const newScore = Math.min(100, Math.max(0, b.score.totalScore + delta));
-          let tier: 'Platinum' | 'Gold' | 'Silver' | 'Bronze' | 'Developing' = 'Developing';
-          if (newScore >= 90) tier = 'Platinum';
-          else if (newScore >= 80) tier = 'Gold';
-          else if (newScore >= 70) tier = 'Silver';
-          else if (newScore >= 60) tier = 'Bronze';
-          return {
-            ...b,
-            score: { ...b.score, totalScore: newScore, tier }
-          };
-        }
-        return b;
-      })
-    );
-    notifySuccess('Barangay ranking score updated.');
   };
 
   const handleExportGovernanceReport = () => {
     const csvContent = [
-      ['National EcoBarangay Platform Governance Report', new Date().toISOString()],
+      ['EcoBarangay Recorded Data Export', new Date().toISOString()],
       ['Total Registered Users', users.length],
-      ['Total Participating Barangays', barangays.length],
-      ['Total Waste Diverted (kg)', totalRecycledKg],
-      ['Total Active MRFs', facilities.length],
-      ['Accredited Institutional Partners', organizations.length],
+      ['Barangay records with score data', barangays.length],
+      ['Recorded recycling total (kg)', totalRecycledKg || 'Not reported'],
+      ['Listed facilities and hubs', facilities.length],
+      ['Institutional partners awaiting/with verification', organizations.length],
       [],
       ['Barangay', 'City', 'Province', 'National Rank', 'Score Tier', 'Recycled (kg)', 'Population'],
       ...barangays.map(b => [
         b.name,
         b.cityName,
         b.provinceName,
-        b.score.nationalRank || 'N/A',
-        b.score.tier,
-        b.totalRecycledKg,
-        b.population
+        b.score.nationalRank || 'Not reported',
+        b.score.totalScore > 0 ? b.score.tier : 'Not reported',
+        b.totalRecycledKg || 'Not reported',
+        b.population || 'Not reported',
       ])
     ]
       .map(row => row.map(cell => `"${cell}"`).join(','))
@@ -240,22 +205,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl sm:text-3xl font-black">{currentUser.fullName}</h1>
                 <span className="bg-amber-500/20 text-amber-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-amber-500/30 uppercase flex items-center gap-1">
-                  <Shield className="w-3.5 h-3.5 text-amber-400" /> System Administrator
+                  <Shield className="w-3.5 h-3.5 text-amber-400" /> Platform Administrator
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-1">
-                Republic of the Philippines • National EcoBarangay Platform & Governance Console
+                Approved Barangay Officials and configured system administrators can manage platform-wide records here.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="p-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-right min-w-[120px]">
-              <div className="text-[10px] uppercase font-bold text-slate-400">National Nodes</div>
+              <div className="text-[10px] uppercase font-bold text-slate-400">Barangay records</div>
               <div className="text-xl font-black text-emerald-400">{barangays.length} Barangays</div>
             </div>
             <div className="p-3 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 text-right min-w-[120px]">
-              <div className="text-[10px] uppercase font-bold text-slate-400">Citizen Accounts</div>
+              <div className="text-[10px] uppercase font-bold text-slate-400">Community accounts</div>
               <div className="text-xl font-black text-amber-400">{users.length} Users</div>
             </div>
             <button
@@ -486,37 +451,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                   Barangay Tier Classification
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Current recorded score distribution across {barangays.length} barangays. Scores are not independently audited.
+                  Recorded score distribution across {scoredBarangayCount} scored barangays. Scores are not independently audited.
                 </p>
               </div>
 
               <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={tierDistribution}
-                    layout="vertical"
-                    margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.2} />
-                    <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#64748b', fontWeight: 'bold' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #334155',
-                        borderRadius: '12px',
-                        color: '#f8fafc',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                      }}
-                    />
-                    <Bar dataKey="count" name="Barangays" radius={[0, 6, 6, 0]}>
-                      {tierDistribution.map((entry, index) => (
-                        <Cell key={`tier-${index}`} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                {scoredBarangayCount ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={tierDistribution}
+                      layout="vertical"
+                      margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.2} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#64748b', fontWeight: 'bold' }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #334155',
+                          borderRadius: '12px',
+                          color: '#f8fafc',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                        }}
+                      />
+                      <Bar dataKey="count" name="Barangays" radius={[0, 6, 6, 0]}>
+                        {tierDistribution.map((entry, index) => (
+                          <Cell key={`tier-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-500">No recorded score data yet.</div>
+                )}
               </div>
             </div>
           </div>
@@ -616,11 +585,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                 {filteredUsers.map(u => (
                   <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
                     <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <img
-                        src={u.photoUrl || u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-                        alt=""
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
+                          {u.photoUrl || u.avatarUrl ? (
+                            <img src={u.photoUrl || u.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <span aria-hidden="true" className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">
+                              {u.fullName.trim().charAt(0).toUpperCase()}
+                            </span>
+                          )}
                       <div>
                         <div>{u.fullName}</div>
                         <div className="text-[10px] text-slate-400 font-normal">{u.email}</div>
@@ -683,15 +654,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">National PSGC Location Registry</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Manage LGUs, Cities, Provinces, and registered Barangay geographic boundaries.</p>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Barangay records linked to PSGC</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Operational records linked to PSGC locations. Population and other indicators appear only when recorded.</p>
             </div>
-            <button
-              onClick={() => setShowAddBarangayModal(true)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
-            >
-              <PlusCircle className="w-4 h-4" /> Register New Barangay
-            </button>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Geographic names and boundaries come from the PSGC directory. Population and operational indicators appear only when recorded.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -702,9 +668,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
               >
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
-                    Tier: {b.score.tier}
+                    Tier: {b.score.totalScore > 0 ? b.score.tier : 'Not reported'}
                   </span>
-                  <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">Rank #{b.score.nationalRank || '-'}</span>
+                  <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
+                    {b.score.totalScore > 0 && b.score.nationalRank ? `Rank #${b.score.nationalRank}` : 'Not ranked'}
+                  </span>
                 </div>
                 <div>
                   <h4 className="text-base font-bold text-slate-900 dark:text-white">Brgy. {b.name}</h4>
@@ -715,26 +683,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                 <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 grid grid-cols-2 gap-2 text-[11px]">
                   <div>
                     <span className="text-slate-400">Population:</span>{' '}
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{b.population.toLocaleString()}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{b.population ? b.population.toLocaleString() : 'Not reported'}</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Recycled:</span>{' '}
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{b.totalRecycledKg} kg</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{b.totalRecycledKg ? `${b.totalRecycledKg} kg` : 'Not reported'}</span>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    onClick={() => handleUpdateBarangayScore(b.id, 2)}
-                    className="flex-1 py-1.5 bg-emerald-100 dark:bg-emerald-950 hover:bg-emerald-200 text-emerald-800 dark:text-emerald-300 rounded-lg text-xs font-bold text-center"
-                  >
-                    +2 Audit Pts
-                  </button>
-                  <button
-                    onClick={() => handleUpdateBarangayScore(b.id, -2)}
-                    className="flex-1 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold text-center"
-                  >
-                    -2 Deduct
-                  </button>
                 </div>
               </div>
             ))}
@@ -792,14 +746,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">National Barangay Sustainability Leaderboard</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Real-time governance ranking calculated from waste diversion, resident engagement, and incident resolutions.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Recorded score rankings. Coverage varies and scores are not independently verified.</p>
             </div>
-            <button
-              onClick={() => notifySuccess('National rankings recalculated.')}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-black"
-            >
-              Recalculate National Ranks
-            </button>
+            <p className="max-w-sm text-xs text-slate-500 dark:text-slate-400">Rankings use recorded score data. Missing indicators are not independently verified.</p>
           </div>
 
           <div className="space-y-3">
@@ -836,7 +785,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
 
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{b.score.totalScore} / 100</div>
+                      <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{b.score.totalScore > 0 ? `${b.score.totalScore} / 100` : 'Not reported'}</div>
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Score Index</div>
                     </div>
                     <div className="hidden sm:block text-right">
@@ -856,8 +805,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
       {activeTab === 'governance' && (
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-6">
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Platform Governance & National Policy Controls</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">System parameters enforcing RA 9003 compliance, verification rules, and public announcements.</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Platform access and review policies</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300">These important safeguards are enforced by the server; changing browser controls cannot change them.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -865,40 +814,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
               <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Settings className="w-4 h-4 text-amber-500" /> System Verification Rules
               </h4>
-
-              <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                <div>
-                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Mandatory Photo Proof for Points</div>
-                  <div className="text-[11px] text-slate-400">Require waste logs and reports to upload valid image proof.</div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={requirePhotoVerification}
-                  onChange={e => {
-                    setRequirePhotoVerification(e.target.checked);
-                    notifySuccess(`Mandatory photo proof ${e.target.checked ? 'enabled' : 'disabled'}.`);
-                  }}
-                  className="w-4 h-4 text-emerald-600 rounded"
-                />
-              </div>
-
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 space-y-2">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-800 dark:text-slate-200">Eco Point Reward Multiplier</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-black">{pointMultiplier}x</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="3.0"
-                  step="0.1"
-                  value={pointMultiplier}
-                  onChange={e => {
-                    setPointMultiplier(parseFloat(e.target.value));
-                    notifySuccess(`National Eco Point multiplier updated to ${e.target.value}x.`);
-                  }}
-                  className="w-full"
-                />
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                Recycling activity must be reviewed by an authorized official before it earns points. AI photo and report analysis are suggestions only; officials make the final decision.
               </div>
             </div>
 
@@ -906,18 +823,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
               <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-amber-500" /> National Broadcast Bulletin
               </h4>
-              <textarea
-                value={platformNotice}
-                onChange={e => setPlatformNotice(e.target.value)}
-                rows={3}
-                className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-white"
-              />
-              <button
-                onClick={() => notifySuccess('National bulletin broadcasted to all barangay portals.')}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm"
-              >
-                Broadcast National Bulletin
-              </button>
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                Platform-wide broadcasting is not connected to a delivery service yet. Use a barangay announcement for local notices; do not rely on this screen to notify residents.
+              </p>
             </div>
           </div>
         </div>
@@ -953,8 +861,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                   <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300">
                     {org.category || 'Institutional'}
                   </span>
-                  <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold rounded-md flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Accredited
+                  <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md flex items-center gap-1 ${org.verified ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200'}`}>
+                    {org.verified ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                    {org.verified ? 'Verified' : 'Pending verification'}
                   </span>
                 </div>
                 <div>
@@ -963,7 +872,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onR
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{org.description}</p>
                 </div>
                 <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>Scope: {org.scope || 'National'}</span>
+                  <span>Scope: {org.scope || 'Not specified'}</span>
                   <span className="font-bold text-emerald-600 dark:text-emerald-400">{org.activeProjectsCount ?? 0} Active Projects</span>
                 </div>
               </div>

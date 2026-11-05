@@ -5,6 +5,7 @@ import {
   User,
   ReportCategory,
   ReportUrgency,
+  ReportAnalysisSuggestion,
   Language,
   PhotoValidationResult,
 } from '../../types';
@@ -96,6 +97,9 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
   const [photoPreview, setPhotoPreview] = useState('');
   const [isValidatingPhoto, setIsValidatingPhoto] = useState(false);
   const [photoValidation, setPhotoValidation] = useState<PhotoValidationResult | null>(null);
+  const [isAnalyzingReport, setIsAnalyzingReport] = useState(false);
+  const [reportAnalysis, setReportAnalysis] = useState<ReportAnalysisSuggestion | null>(null);
+  const [reportAnalysisError, setReportAnalysisError] = useState('');
   const [isLocating, setIsLocating] = useState(false);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number }>({
     lat: currentBarangay.lat,
@@ -198,6 +202,7 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
   // Handle category switch with auto-suggested tags
   const handleCategorySelect = (selectedCat: ReportCategory) => {
     setCategory(selectedCat);
+    setReportAnalysis(null);
     const catConfig = CATEGORY_OPTIONS.find(c => c.value === selectedCat);
     if (catConfig) {
       // Merge default tags without duplicates
@@ -205,6 +210,26 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
         const merged = Array.from(new Set([...prev, ...catConfig.defaultTags]));
         return merged;
       });
+    }
+  };
+
+  const analyzeReportDescription = async () => {
+    if (description.trim().length < 8) {
+      setReportAnalysisError('Enter at least 8 characters before asking for an AI suggestion.');
+      return;
+    }
+
+    setIsAnalyzingReport(true);
+    setReportAnalysis(null);
+    setReportAnalysisError('');
+    try {
+      setReportAnalysis(await api.analyzeReport(description.trim(), category));
+    } catch (error) {
+      setReportAnalysisError(error instanceof Error
+        ? error.message
+        : 'AI analysis is unavailable. You can still submit your report for official review.');
+    } finally {
+      setIsAnalyzingReport(false);
     }
   };
 
@@ -285,26 +310,11 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
       const result = await api.validateReportPhoto(dataUrl);
       setPhotoValidation(result);
 
-      if (!result.isValid) {
-        setErrorMsg(`AI Photo Rejection: ${result.reason}`);
-      } else {
-        // Auto-suggest category if detected and user hasn't modified
-        if (result.detectedCategory === 'CLOGGED_DRAINAGE') setCategory('Clogged Drainage');
-        else if (result.detectedCategory === 'OPEN_BURNING') setCategory('Open Burning (Siga)');
-        else if (result.detectedCategory === 'HAZARDOUS_WASTE') setCategory('Hazardous Waste');
-        else if (result.detectedCategory === 'ILLEGAL_DUMPING') setCategory('Illegal Dumping');
-        else if (result.detectedCategory === 'RECYCLING') setCategory('Plastic Pollution');
-
-        if (result.detectedSeverity === 'CRITICAL' || result.detectedSeverity === 'HIGH') {
-          setUrgency('High');
-        }
-
-        if (result.suggestedTitle && (!description || description.length < 5)) {
-          setDescription(result.suggestedTitle);
-        }
-      }
-    } catch (err: any) {
-      console.warn('AI validation error:', err);
+    } catch (error) {
+      console.warn('AI photo assessment failed.');
+      setErrorMsg(error instanceof Error
+        ? `Photo attached, but AI assessment is unavailable: ${error.message}`
+        : 'Photo attached, but AI assessment is unavailable. You can still submit your report.');
     } finally {
       setIsValidatingPhoto(false);
     }
@@ -423,6 +433,9 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
         setLandmark('');
         setPhotoUrl('');
         setPhotoPreview('');
+        setPhotoValidation(null);
+        setReportAnalysis(null);
+        setReportAnalysisError('');
         setSelectedTags(['#IllegalDumping', '#PlasticWaste']);
         setSuccessBanner(false);
       }, 2500);
@@ -501,7 +514,7 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
         {/* SECTION 1: Concern Category */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <label htmlFor="report-description" className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
               <span>1. Violation / Concern Category</span>
               <span className="text-red-500">*</span>
             </label>
@@ -664,14 +677,56 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
           </div>
 
           <textarea
+            id="report-description"
             rows={4}
             required
             placeholder="Describe what you observed in detail (e.g., specific waste materials like plastic crates, food waste, chemical containers, approximate size of dump, when it started accumulating, and any visible risks to waterways or neighbors)..."
             value={description}
-            onChange={e => setDescription(e.target.value)}
+            onChange={e => {
+              setDescription(e.target.value);
+              setReportAnalysis(null);
+              setReportAnalysisError('');
+            }}
             maxLength={500}
-            className="w-full p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all leading-relaxed"
+            className="w-full min-h-28 p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all leading-relaxed"
           />
+
+          <div className="space-y-2 rounded-2xl border border-violet-200 bg-violet-50/70 p-3 dark:border-violet-900 dark:bg-violet-950/30">
+            <button
+              type="button"
+              onClick={analyzeReportDescription}
+              disabled={isAnalyzingReport || description.trim().length < 8}
+              className="min-h-11 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-800"
+            >
+              {isAnalyzingReport ? 'Reviewing report…' : 'Get AI report suggestions'}
+            </button>
+            <p className="text-xs leading-relaxed text-violet-900 dark:text-violet-200">
+              AI suggestions are optional and do not verify your report. Only the selected category and description are sent for analysis; do not include names, phone numbers, or other private details.
+            </p>
+            {reportAnalysisError && <p role="alert" className="text-sm font-medium text-red-700 dark:text-red-300">{reportAnalysisError}</p>}
+            {reportAnalysis && (
+              <div role="status" className="space-y-2 rounded-xl border border-violet-200 bg-white p-3 text-sm text-slate-800 dark:border-violet-800 dark:bg-slate-900 dark:text-slate-100">
+                <p><strong>AI summary suggestion:</strong> {reportAnalysis.summary}</p>
+                <p>
+                  Suggested category: <strong>{reportAnalysis.suggestedCategory}</strong>
+                  {' · '}Urgency: <strong>{reportAnalysis.suggestedUrgency}</strong>
+                  {' · '}{Math.round(reportAnalysis.confidence * 100)}% confidence
+                </p>
+                {reportAnalysis.safetyNote && <p><strong>Safety note:</strong> {reportAnalysis.safetyNote}</p>}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCategorySelect(reportAnalysis.suggestedCategory);
+                    setUrgency(reportAnalysis.suggestedUrgency);
+                  }}
+                  className="min-h-10 rounded-lg border border-violet-300 px-3 py-2 text-sm font-bold text-violet-800 hover:bg-violet-100 dark:border-violet-700 dark:text-violet-200 dark:hover:bg-violet-900"
+                >
+                  Apply category and urgency suggestions
+                </button>
+                <p className="text-xs text-slate-600 dark:text-slate-300">Review and edit all details before submitting; an authorized official makes the final assessment.</p>
+              </div>
+            )}
+          </div>
 
           {/* Quick Template Chips */}
           <div className="space-y-1.5 pt-1">
@@ -823,7 +878,7 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
             </label>
             <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-emerald-500" />
-              Gemini Vision AI Verified
+              AI photo suggestion
             </span>
           </div>
 
@@ -901,6 +956,30 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
                       ))}
                     </div>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const suggestedCategory: Partial<Record<NonNullable<PhotoValidationResult['detectedCategory']>, ReportCategory>> = {
+                        UNCOLLECTED_GARBAGE: 'Overflowing Bin',
+                        ILLEGAL_DUMPING: 'Illegal Dumping',
+                        CLOGGED_DRAINAGE: 'Clogged Drainage',
+                        OPEN_BURNING: 'Open Burning (Siga)',
+                        HAZARDOUS_WASTE: 'Hazardous Waste',
+                        RECYCLING: 'Plastic Pollution',
+                      };
+                      const mappedCategory = photoValidation.detectedCategory
+                        ? suggestedCategory[photoValidation.detectedCategory]
+                        : undefined;
+                      if (mappedCategory) handleCategorySelect(mappedCategory);
+                      if (photoValidation.detectedSeverity === 'CRITICAL') setUrgency('Critical');
+                      else if (photoValidation.detectedSeverity === 'HIGH') setUrgency('High');
+                      const suggestedText = photoValidation.suggestedDescription || photoValidation.suggestedTitle;
+                      if (suggestedText && !description.trim()) setDescription(suggestedText);
+                    }}
+                    className="min-h-10 rounded-lg border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                  >
+                    Apply AI suggestions
+                  </button>
                 </div>
               ) : photoValidation?.isValid === false && photoValidation.confidence > 0 ? (
                 <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-xl space-y-1.5">

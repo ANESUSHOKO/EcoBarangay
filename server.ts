@@ -2,13 +2,14 @@ import express from 'express';
 import path from 'path';
 import { dbStore } from './src/server/dbStore';
 import { isBootstrapSystemAdmin } from './src/server/adminBootstrap';
+import { hasSystemAdminCapabilities } from './src/server/accessControl';
 import { challengeView, eventView } from './src/server/publicViews';
 import {
   verifyPassword,
 } from './src/server/authSecurity';
-import { validateReportPhoto, chatWithEcoAssistant } from './src/server/geminiService';
+import { analyzeEnvironmentalReport, validateReportPhoto, chatWithEcoAssistant } from './src/server/geminiService';
 import { firebaseAuth } from './src/server/firebaseAdmin';
-import { User } from './src/types';
+import { ReportCategory, User } from './src/types';
 
 type AuthenticatedRequest = express.Request & {
   appUser?: User;
@@ -80,6 +81,7 @@ export async function createApp(options: AppOptions = {}) {
   const publicReadRoutes = [
     /^\/api\/stats\/summary$/,
     /^\/api\/locations\/(regions|provinces|cities|barangays)$/,
+    /^\/api\/locations\/barangays\/[^/]+$/,
     /^\/api\/locations\/detect-nearest$/,
     /^\/api\/rankings$/,
     /^\/api\/rankings\/[^/]+\/history$/,
@@ -162,7 +164,7 @@ export async function createApp(options: AppOptions = {}) {
           return res.status(403).json({ error: 'You may only act on your own account.' });
         }
 
-        if (req.path.startsWith('/api/admin/') && appUser.role !== 'SYSTEM_ADMIN') {
+        if (req.path.startsWith('/api/admin/') && !hasSystemAdminCapabilities(appUser)) {
           return res.status(403).json({ error: 'System administrator access is required.' });
         }
 
@@ -180,32 +182,6 @@ export async function createApp(options: AppOptions = {}) {
           return res.status(403).json({ error: 'Verified barangay official access is required.' });
         }
 
-        if (appUser.role === 'BARANGAY_OFFICIAL' && appUser.verifiedOfficial) {
-          let targetBarangayId = req.body?.barangayId;
-          const reportStatusId = req.path.match(/^\/api\/reports\/([^/]+)\/(?:status|photo-review|reopen-decision)$/)?.[1];
-          const facilityStatusId = req.path.match(/^\/api\/facilities\/([^/]+)\/status$/)?.[1];
-          const pickupStatusId = req.path.match(/^\/api\/bulk-pickups\/([^/]+)\/status$/)?.[1];
-          const scheduleId = req.path.match(/^\/api\/schedules\/([^/]+)$/)?.[1];
-          const activityReviewId = req.path.match(/^\/api\/activity-logs\/([^/]+)\/review$/)?.[1];
-          if (reportStatusId) {
-            targetBarangayId = dbStore.getReports().find(item => item.id === reportStatusId)?.barangayId;
-          } else if (facilityStatusId) {
-            targetBarangayId = dbStore.getFacilities().find(item => item.id === facilityStatusId)?.barangayId;
-          } else if (pickupStatusId) {
-            targetBarangayId = dbStore.getBulkPickups().find(item => item.id === pickupStatusId)?.barangayId;
-          } else if (scheduleId) {
-            targetBarangayId = dbStore.getSchedules().find(item => item.id === scheduleId)?.barangayId;
-          } else if (activityReviewId) {
-            const activity = dbStore.getActivityLogs().find(item => item.id === activityReviewId);
-            targetBarangayId = activity ? dbStore.getUserById(activity.userId)?.barangayId : undefined;
-          } else if (req.path === '/api/activity-logs/pending') {
-            targetBarangayId = typeof req.query.barangayId === 'string' ? req.query.barangayId : undefined;
-          }
-          if (typeof targetBarangayId === 'string' && targetBarangayId !== appUser.barangayId) {
-            return res.status(403).json({ error: 'You may only manage records in your assigned barangay.' });
-          }
-        }
-
         const profileMatch = req.path.match(/^\/api\/auth\/user\/([^/]+)$/);
         const householdMatch = req.path.match(/^\/api\/auth\/user\/([^/]+)\/household$/);
         const familyGroupMatch = req.path.match(/^\/api\/family-group\/([^/]+)$/);
@@ -216,15 +192,7 @@ export async function createApp(options: AppOptions = {}) {
           return res.status(403).json({ error: 'You may only access your own account data.' });
         }
         const officialPickupQueue = req.method === 'GET' && req.path === '/api/bulk-pickups' &&
-          (appUser.role === 'SYSTEM_ADMIN' || (appUser.role === 'BARANGAY_OFFICIAL' && appUser.verifiedOfficial));
-        if (
-          req.path === '/api/bulk-pickups' &&
-          officialPickupQueue &&
-          appUser.role === 'BARANGAY_OFFICIAL' &&
-          req.query.barangayId !== appUser.barangayId
-        ) {
-          return res.status(403).json({ error: 'You may only view pickup requests in your assigned barangay.' });
-        }
+          (hasSystemAdminCapabilities(appUser));
         if (
           ['/api/activity-logs', '/api/calendar'].includes(req.path) &&
           requestedUserId !== appUser.id
@@ -367,8 +335,8 @@ export async function createApp(options: AppOptions = {}) {
       province: brgy.provinceName,
       region: brgy.regionName,
       phone,
-      avatarUrl: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-      photoUrl: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      avatarUrl: avatarUrl || undefined,
+      photoUrl: avatarUrl || undefined,
       verifiedOfficial: false,
       officialAccessRequest: requestOfficialAccess
         ? { barangayId: brgy.id, status: 'Pending', submittedAt: new Date().toISOString() }
@@ -376,7 +344,7 @@ export async function createApp(options: AppOptions = {}) {
       householdHeadName,
       householdMembersCount: householdMembersCount ? Number(householdMembersCount) : undefined,
       householdAddress,
-      householdSegregationType: householdSegregationType || '3-Bin Segregation System',
+      householdSegregationType: householdSegregationType || undefined,
       householdRegistered: isHouseholdRegistered,
     });
 
@@ -515,6 +483,12 @@ export async function createApp(options: AppOptions = {}) {
     );
   });
 
+  app.get('/api/locations/barangays/:id', (req, res) => {
+    const barangay = dbStore.getBarangayById(req.params.id);
+    if (!barangay) return res.status(404).json({ error: 'Barangay not found.' });
+    return res.json(barangay);
+  });
+
   // Location: Detect Nearest Barangay via Geolocation
   app.post('/api/locations/detect-nearest', async (req, res) => {
     const { lat, lng } = req.body;
@@ -562,7 +536,9 @@ export async function createApp(options: AppOptions = {}) {
   app.get('/api/rankings', (req, res) => {
     dbStore.captureDailyRankingSnapshotIfDue();
     const { regionCode, provinceCode, cityCode, tier, search } = req.query;
-    let list = dbStore.getBarangays();
+    let list = dbStore.getBarangays().filter(barangay =>
+      Number.isFinite(barangay.score?.totalScore) && barangay.score.totalScore > 0
+    );
 
     if (regionCode) list = list.filter(b => b.regionCode === regionCode);
     if (provinceCode) list = list.filter(b => b.provinceCode === provinceCode);
@@ -591,7 +567,44 @@ export async function createApp(options: AppOptions = {}) {
 
   // --- AI & INTELLIGENCE ROUTES ---
 
-  // AI Photo Verification for Environmental Reports
+  app.post('/api/ai/analyze-report', async (req, res) => {
+    const user = (req as AuthenticatedRequest).appUser;
+    if (!user) return res.status(401).json({ error: 'Authentication is required.' });
+    if (!allowAiRequest(`report-analysis:${user.id}`, 10)) {
+      return res.status(429).json({ error: 'Report analysis limit reached. Try again in a minute.' });
+    }
+
+    const categories: ReportCategory[] = [
+      'Illegal Dumping', 'Overflowing Bin', 'Missed Collection', 'Clogged Drainage',
+      'Hazardous Waste', 'Open Burning (Siga)', 'Plastic Pollution',
+      'Waterway Contamination', 'Unsegregated Waste',
+    ];
+    const { description, category } = req.body || {};
+    const validatedCategory = typeof category === 'string'
+      ? categories.find(value => value === category)
+      : undefined;
+    if (
+      typeof description !== 'string' ||
+      description.trim().length < 8 ||
+      description.trim().length > 2_000 ||
+      !validatedCategory
+    ) {
+      return res.status(400).json({ error: 'Provide a report description of 8–2,000 characters and a valid category.' });
+    }
+
+    try {
+      const suggestion = await analyzeEnvironmentalReport(description.trim(), validatedCategory);
+      if (!suggestion) {
+        return res.status(503).json({ error: 'AI report analysis is not configured. You can still submit your report for official review.' });
+      }
+      return res.json(suggestion);
+    } catch (error) {
+      console.error('[AI Report Analysis Route Error]:', error);
+      return res.status(502).json({ error: 'AI report analysis failed. You can still submit your report for official review.' });
+    }
+  });
+
+  // AI Photo Suggestions for Environmental Reports
   app.post('/api/ai/validate-report-photo', async (req, res) => {
     try {
       const user = (req as AuthenticatedRequest).appUser;
@@ -686,7 +699,7 @@ export async function createApp(options: AppOptions = {}) {
     const user = (req as AuthenticatedRequest).appUser;
     if (!user) return res.status(401).json({ error: 'Authentication is required.' });
     const requestedBarangay = typeof req.query.barangayId === 'string' ? req.query.barangayId : undefined;
-    if (user.role === 'SYSTEM_ADMIN') {
+    if (hasSystemAdminCapabilities(user)) {
       return res.json(dbStore.getReports(requestedBarangay));
     }
 
@@ -883,7 +896,7 @@ export async function createApp(options: AppOptions = {}) {
 
   app.post('/api/reports/:id/photo-review', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
-    if (!user || (user.role !== 'SYSTEM_ADMIN' &&
+    if (!user || (!hasSystemAdminCapabilities(user) &&
         (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial))) {
       return res.status(403).json({ error: 'Verified barangay official access is required.' });
     }
@@ -914,7 +927,7 @@ export async function createApp(options: AppOptions = {}) {
 
   app.post('/api/reports/:id/reopen-decision', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
-    if (!user || (user.role !== 'SYSTEM_ADMIN' &&
+    if (!user || (!hasSystemAdminCapabilities(user) &&
         (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial))) {
       return res.status(403).json({ error: 'Verified barangay official access is required.' });
     }
@@ -989,7 +1002,7 @@ export async function createApp(options: AppOptions = {}) {
     if (!user) return res.status(401).json({ error: 'Authentication is required.' });
     const data = req.body && typeof req.body === 'object' ? req.body : {};
     const wasteTypes = ['Biodegradable', 'Non-Biodegradable', 'Recyclable', 'Bulk/E-Waste'];
-    const barangayId = user.role === 'SYSTEM_ADMIN' ? data.barangayId : user.barangayId;
+    const barangayId = hasSystemAdminCapabilities(user) ? data.barangayId : user.barangayId;
     const barangay = dbStore.getBarangayById(barangayId);
     if (
       !barangay ||
@@ -1189,7 +1202,20 @@ export async function createApp(options: AppOptions = {}) {
   });
 
   app.post('/api/organizations', (req, res) => {
-    const org = dbStore.createPartnerOrganization(req.body);
+    const data = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const allowedCategories = ['School / University', 'Environmental NGO', 'Partner LGU', 'National Agency'];
+    if (
+      typeof data.name !== 'string' ||
+      data.name.trim().length < 2 ||
+      data.name.trim().length > 120 ||
+      (data.category !== undefined && !allowedCategories.includes(data.category)) ||
+      (data.acronym !== undefined && (typeof data.acronym !== 'string' || data.acronym.length > 24)) ||
+      (data.description !== undefined && (typeof data.description !== 'string' || data.description.length > 1_000)) ||
+      (data.scope !== undefined && (typeof data.scope !== 'string' || data.scope.length > 200))
+    ) {
+      return res.status(400).json({ error: 'Provide a valid partner name, category, acronym, description, and scope.' });
+    }
+    const org = dbStore.createPartnerOrganization(data);
     res.status(201).json(org);
   });
 
@@ -1285,7 +1311,7 @@ export async function createApp(options: AppOptions = {}) {
   app.get('/api/notifications', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
     if (!user) return res.status(401).json({ error: 'Authentication is required.' });
-    const barangayId = user.role === 'SYSTEM_ADMIN' && typeof req.query.barangayId === 'string'
+    const barangayId = hasSystemAdminCapabilities(user) && typeof req.query.barangayId === 'string'
       ? req.query.barangayId
       : user.barangayId;
     res.json(dbStore.getNotifications(barangayId, user.id));
@@ -1305,7 +1331,7 @@ export async function createApp(options: AppOptions = {}) {
   app.post('/api/notifications/read-all', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
     if (!user) return res.status(401).json({ error: 'Authentication is required.' });
-    const barangayId = user.role === 'SYSTEM_ADMIN' && typeof req.body?.barangayId === 'string'
+    const barangayId = hasSystemAdminCapabilities(user) && typeof req.body?.barangayId === 'string'
       ? req.body.barangayId
       : user.barangayId;
     dbStore.markAllNotificationsAsRead(barangayId, user.id);
@@ -1443,16 +1469,13 @@ export async function createApp(options: AppOptions = {}) {
 
   app.get('/api/activity-logs/pending', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
-    if (!user || (user.role !== 'SYSTEM_ADMIN' &&
+    if (!user || (!hasSystemAdminCapabilities(user) &&
         (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial))) {
       return res.status(403).json({ error: 'Verified barangay official access is required.' });
     }
-    const barangayId = user.role === 'SYSTEM_ADMIN' && typeof req.query.barangayId === 'string'
+    const barangayId = hasSystemAdminCapabilities(user) && typeof req.query.barangayId === 'string'
       ? req.query.barangayId
       : user.barangayId;
-    if (user.role === 'BARANGAY_OFFICIAL' && req.query.barangayId !== user.barangayId) {
-      return res.status(403).json({ error: 'You may only review recycling activity in your assigned barangay.' });
-    }
     res.json(dbStore.getPendingEcoActivities(barangayId).map(activity => ({
       ...activity,
       residentName: dbStore.getUserById(activity.userId)?.fullName || 'Resident',
@@ -1462,7 +1485,7 @@ export async function createApp(options: AppOptions = {}) {
 
   app.post('/api/activity-logs/:id/review', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
-    if (!user || (user.role !== 'SYSTEM_ADMIN' &&
+    if (!user || (!hasSystemAdminCapabilities(user) &&
         (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial))) {
       return res.status(403).json({ error: 'Verified barangay official access is required.' });
     }
@@ -1482,7 +1505,7 @@ export async function createApp(options: AppOptions = {}) {
     const activity = dbStore.getActivityLogs().find(item => item.id === req.params.id);
     const resident = activity ? dbStore.getUserById(activity.userId) : undefined;
     if (!resident) return res.status(404).json({ error: 'Activity or resident not found.' });
-    if (user.role === 'BARANGAY_OFFICIAL' && resident.barangayId !== user.barangayId) {
+    if (!hasSystemAdminCapabilities(user) && resident.barangayId !== user.barangayId) {
       return res.status(403).json({ error: 'You may only review activity in your assigned barangay.' });
     }
     const reviewed = dbStore.reviewEcoActivity(req.params.id, user.id, status, pointsAwarded, notes);
@@ -1530,7 +1553,7 @@ export async function createApp(options: AppOptions = {}) {
 
   app.get('/api/official/account-summary', (req, res) => {
     const user = (req as AuthenticatedRequest).appUser;
-    if (!user || (user.role !== 'SYSTEM_ADMIN' &&
+    if (!user || (!hasSystemAdminCapabilities(user) &&
         (user.role !== 'BARANGAY_OFFICIAL' || !user.verifiedOfficial))) {
       return res.status(403).json({ error: 'Verified barangay official access is required.' });
     }
