@@ -145,6 +145,9 @@ class DBStore {
     this.data = this.createDefaultData();
     this.loadPsgcData();
     this.readyPromise = this.initializeFromFirestore();
+    // Prevent an unhandled rejection from crashing the serverless runtime;
+    // callers still observe the error through ready().
+    this.readyPromise.catch(() => undefined);
   }
 
   public async ready() {
