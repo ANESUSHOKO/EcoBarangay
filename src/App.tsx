@@ -5,7 +5,8 @@ import { ThemeMode, getInitialTheme, setThemeMode } from './lib/theme';
 import { auth } from './lib/firebase';
 import { hasSystemAdminCapabilities } from './server/accessControl';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav } from './components';
+import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav, EcoBotChatModal } from './components';
+import { Bot, Sparkles } from 'lucide-react';
 import {
   HomePage,
   AuthPage,
@@ -39,6 +40,15 @@ export function App() {
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isEcoBotOpen, setIsEcoBotOpen] = useState<boolean>(false);
+  const [isGmpQuotaExceeded, setIsGmpQuotaExceeded] = useState<boolean>(false);
+
+  // Listen for Google Maps quota exceeded events
+  useEffect(() => {
+    const handleQuota = () => setIsGmpQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', handleQuota);
+    return () => window.removeEventListener('gmp-quota-exceeded', handleQuota);
+  }, []);
 
   // Set active tab and sync with browser URL/history
   const setActiveTab = (tab: string, replace = false) => {
@@ -170,6 +180,24 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200 overflow-x-hidden w-full">
+      {/* Google Maps Quota Notice */}
+      {isGmpQuotaExceeded && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
+          <span>
+            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            <a
+              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-amber-950 hover:text-amber-800"
+            >
+              maps developer site
+            </a>{' '}
+            for instructions to update your account.
+          </span>
+        </div>
+      )}
+
       {/* Navbar */}
       <Navbar
         currentUser={currentUser}
@@ -378,6 +406,33 @@ export function App() {
           onUpdateUser={setCurrentUser}
         />
       )}
+
+      {/* Floating EcoBot AI Assistant Button */}
+      <button
+        type="button"
+        onClick={() => setIsEcoBotOpen(true)}
+        aria-label="Ask EcoBot AI Assistant"
+        className="fixed bottom-20 sm:bottom-6 right-5 z-40 p-3 sm:px-4 sm:py-3 rounded-full bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5 border-2 border-emerald-400/40 cursor-pointer group"
+      >
+        <div className="relative">
+          <Bot className="w-5 h-5 text-white" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-300 ring-2 ring-emerald-700 animate-ping" />
+        </div>
+        <span className="hidden sm:inline font-bold text-sm tracking-tight pr-1">
+          Ask EcoBot
+        </span>
+        <span className="hidden sm:inline px-1.5 py-0.5 rounded-full bg-emerald-500/40 text-[10px] font-extrabold uppercase tracking-wider">
+          AI
+        </span>
+      </button>
+
+      {/* EcoBot Chat Modal */}
+      <EcoBotChatModal
+        isOpen={isEcoBotOpen}
+        onClose={() => setIsEcoBotOpen(false)}
+        currentBarangay={currentBarangay}
+        currentUser={currentUser}
+      />
     </div>
   );
 }

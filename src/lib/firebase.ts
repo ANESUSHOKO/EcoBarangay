@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import config from '../../firebase-applet-config.json';
 
@@ -10,6 +11,7 @@ const app = !getApps().length
 
 export const storage = getStorage(app);
 export const auth = getAuth(app);
+export const db = getFirestore(app, config.firestoreDatabaseId);
 
 if (useEmulators) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });

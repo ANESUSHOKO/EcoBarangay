@@ -1,3 +1,18 @@
+import 'dotenv/config';
+import fs from 'fs';
+
+// Sanitize invalid or placeholder GOOGLE_APPLICATION_CREDENTIALS before initializing cloud services
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS.trim();
+  try {
+    if (!credPath || !fs.existsSync(credPath)) {
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    }
+  } catch {
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
+}
+
 import express from 'express';
 import path from 'path';
 import { dbStore } from './src/server/dbStore';
@@ -120,6 +135,23 @@ export async function createApp(options: AppOptions = {}) {
     if (req.method === 'GET' && !req.headers.authorization &&
         publicReadRoutes.some(route => route.test(req.path))) return next();
     if (req.path === '/api/locations/detect-nearest' && req.method === 'POST') return next();
+    if (req.path === '/api/ai/chat' && req.method === 'POST') {
+      if (req.headers.authorization && firebaseAuth) {
+        try {
+          const chatToken = req.headers.authorization.match(/^Bearer (.+)$/i)?.[1];
+          if (chatToken) {
+            const identity = await firebaseAuth.verifyIdToken(chatToken);
+            const storedAppUser = identity.email ? dbStore.getUserByEmail(identity.email) : undefined;
+            (req as AuthenticatedRequest).appUser = storedAppUser;
+            (req as AuthenticatedRequest).firebaseUid = identity.uid;
+            (req as AuthenticatedRequest).firebaseEmail = identity.email;
+          }
+        } catch {
+          // Continue as guest
+        }
+      }
+      return next();
+    }
 
     const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
     if (!token || !firebaseAuth) {
@@ -637,8 +669,8 @@ export async function createApp(options: AppOptions = {}) {
   app.post('/api/ai/chat', async (req, res) => {
     try {
       const user = (req as AuthenticatedRequest).appUser;
-      if (!user) return res.status(401).json({ error: 'Authentication is required.' });
-      if (!allowAiRequest(`chat:${user.id}`, 20)) {
+      const clientIdentifier = user?.id || req.ip || 'anonymous';
+      if (!allowAiRequest(`chat:${clientIdentifier}`, 25)) {
         return res.status(429).json({ error: 'Assistant limit reached. Try again in a minute.' });
       }
 
@@ -657,13 +689,16 @@ export async function createApp(options: AppOptions = {}) {
         return res.status(400).json({ error: 'Provide up to 20 valid messages of at most 2,000 characters each.' });
       }
 
-      const localSchedules = dbStore.getSchedules(user.barangayId);
-      const reply = await chatWithEcoAssistant(messages, {
-        barangayName: user.barangayName,
+      const targetBarangayId = user?.barangayId || (typeof context?.barangayId === 'string' ? context.barangayId : undefined);
+      const localSchedules = targetBarangayId ? dbStore.getSchedules(targetBarangayId) : [];
+      const result = await chatWithEcoAssistant(messages, {
+        barangayName: user?.barangayName || context?.barangayName,
+        userLat: typeof context?.userLat === 'number' ? context.userLat : undefined,
+        userLng: typeof context?.userLng === 'number' ? context.userLng : undefined,
         lang: typeof context?.lang === 'string' && ['en', 'tl'].includes(context.lang) ? context.lang : 'en',
         localSchedules,
       });
-      return res.json({ reply });
+      return res.json(result);
     } catch (error) {
       console.error('[AI Chat Route Error]:', error);
       return res.status(500).json({ error: 'Failed to communicate with AI Assistant.' });
@@ -1613,7 +1648,7 @@ export async function createApp(options: AppOptions = {}) {
 
 async function startServer() {
   const app = await createApp({ serveFrontend: true });
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[EcoBarangay] Full-stack Server listening at http://localhost:${PORT}`);
   });

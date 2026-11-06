@@ -5,6 +5,19 @@ import { getAuth } from 'firebase-admin/auth';
 import fs from 'fs';
 import path from 'path';
 
+// Guard against invalid or placeholder paths that cause google-auth-library uncaught exceptions
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS.trim();
+  try {
+    if (!credPath || !fs.existsSync(credPath)) {
+      console.warn(`[firebaseAdmin] GOOGLE_APPLICATION_CREDENTIALS path "${credPath}" does not exist. Removing to avoid uncaught exception.`);
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    }
+  } catch {
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
+}
+
 type FirebaseConfig = {
   projectId: string;
   firestoreDatabaseId?: string;

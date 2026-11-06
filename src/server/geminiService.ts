@@ -217,73 +217,101 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface GroundedPlace {
+  title: string;
+  uri: string;
+  placeId?: string;
+}
+
+export interface ChatAssistantResult {
+  reply: string;
+  groundedPlaces?: GroundedPlace[];
+}
+
 export interface ChatAssistantContext {
   barangayName?: string;
   lang?: string;
+  userLat?: number;
+  userLng?: number;
   localSchedules?: GarbageSchedule[];
 }
 
 /**
  * Handles conversational queries with the EcoBarangay AI Assistant (EcoBot).
- * Capable of answering any general knowledge questions, technical queries,
- * everyday advice, and comprehensive Philippine environmental/barangay concerns.
+ * Grounded in Philippine environmental laws (RA 9003), local schedules,
+ * and live Google Maps data for nearby recycling facilities, junk shops, and MRFs.
  */
 export async function chatWithEcoAssistant(
   messages: ChatMessage[],
   context?: ChatAssistantContext
-): Promise<string> {
+): Promise<ChatAssistantResult> {
   const ai = getGeminiClient();
 
   if (!ai) {
     const lastUserMsg = messages.filter((m) => m.role === 'user').pop()?.content.toLowerCase() || '';
     if (lastUserMsg.includes('schedule') || lastUserMsg.includes('collection') || lastUserMsg.includes('pickup')) {
       if (!context?.localSchedules?.length) {
-        return `I don’t have a published collection schedule for ${context?.barangayName || 'your barangay'} in EcoBarangay. Please confirm with your barangay office.`;
+        return {
+          reply: `I don’t have a published collection schedule for ${context?.barangayName || 'your barangay'} in EcoBarangay. Please confirm with your barangay office.`,
+        };
       }
       const schedules = context.localSchedules
         .map(schedule => `• ${schedule.dayOfWeek}, ${schedule.timeSlot}: ${schedule.wasteType}. ${schedule.instructions}`)
         .join('\n');
-      return `Published collection information for ${context.barangayName || 'your barangay'}:\n${schedules}\nPlease confirm changes with your barangay office.`;
+      return {
+        reply: `Published collection information for ${context.barangayName || 'your barangay'}:\n${schedules}\nPlease confirm changes with your barangay office.`,
+      };
     }
     if (lastUserMsg.includes('segregat') || lastUserMsg.includes('tapon') || lastUserMsg.includes('hiwalay')) {
-      return `Mabuhay! Narito ang tamang paghihiwalay ng basura ayon sa **Republic Act 9003**:
+      return {
+        reply: `Mabuhay! Narito ang tamang paghihiwalay ng basura ayon sa **Republic Act 9003**:
 1. **Nabubulok (Biodegradable / Green)**: Tirang pagkain, balat ng gulay at prutas, tuyong dahon, biodegradable garden waste.
 2. **Di-Nabubulok / Residual (Black)**: Maruruming single-use plastic, styrofoam, disposable masks, diaper, wrappers.
 3. **Nareresiklo (Recyclable / Blue)**: Plastic bottles (PET/HDPE), aluminum cans, karton, papel, salamin, scrap metal.
-4. **Espesyal / Hazardous (Red/Yellow)**: Baterya, busted fluorescent bulbs, expired medicines, pesticide containers, e-waste.`;
+4. **Espesyal / Hazardous (Red/Yellow)**: Baterya, busted fluorescent bulbs, expired medicines, pesticide containers, e-waste.`,
+      };
     }
     if (lastUserMsg.includes('points') || lastUserMsg.includes('eco points') || lastUserMsg.includes('puntos')) {
-      return `Eco Points are credited only for activities verified by an authorized barangay official. Check your activity history for verified awards; ask your barangay office about locally available redemption options.`;
+      return {
+        reply: `Eco Points are credited only for activities verified by an authorized barangay official. Check your activity history for verified awards; ask your barangay office about locally available redemption options.`,
+      };
     }
     if (lastUserMsg.includes('ra 9003') || lastUserMsg.includes('republic act')) {
-      return `Ang **Republic Act No. 9003** (Ecological Solid Waste Management Act of 2000) ay ang pambansang batas sa Pilipinas na nag-uutos sa systematic, comprehensive, and ecological solid waste management program.
+      return {
+        reply: `Ang **Republic Act No. 9003** (Ecological Solid Waste Management Act of 2000) ay ang pambansang batas sa Pilipinas na nag-uutos sa systematic, comprehensive, and ecological solid waste management program.
 Pangunahing layunin nito ang:
 1. Segregation at source (bawat tahanan at establisyimento)
 2. Pagtatag ng Barangay Materials Recovery Facilities (MRF)
 3. Pagbabawal sa open burning (siga) at illegal open dumpsites
-4. Pagpapataw ng multa sa mga lumalabag sa tamang pagtatapon.`;
+4. Pagpapataw ng multa sa mga lumalabag sa tamang pagtatapon.`,
+      };
     }
-    return `Mabuhay! 👋 Ako si **EcoBot**, ang iyong AI Assistant. 
+    return {
+      reply: `Mabuhay! 👋 Ako si **EcoBot**, ang iyong AI Assistant. 
 
-Maaari mo akong tanungin tungkol sa **kahit anong bagay**—mula sa:
-• **Kahit anong pangkalahatang tanong (General Knowledge, Science, Math, History, Health, Daily Life)**
+Maaari mo akong tanungin tungkol sa:
 • **Tamang Solid Waste Management, Segregation, at RA 9003**
 • **Mga serbisyo sa Barangay, Koleksyon ng Basura, at MRF**
+• **Paghahanap ng mga junk shops at recycling centers malapit sa iyo**
 • **Pag-ipon at pag-redeem ng Eco Points sa EcoBarangay**
 • **Paggamit at mga feature ng website na ito**
 
-Ano ang nais mong itanong o pag-usapan ngayon?`;
+Ano ang nais mong itanong o pag-usapan ngayon?`,
+    };
   }
 
-  const systemInstruction = `You are "EcoBot", a friendly assistant for EcoBarangay.
+  const systemInstruction = `You are "EcoBot", a friendly, knowledgeable environmental AI assistant for EcoBarangay.
 You are powered by Google Gemini and live on the EcoBarangay web platform in the Philippines.
 
 YOUR CORE CAPABILITIES & INSTRUCTIONS:
-  1. **Use approved local information for EcoBarangay questions**:
-     - Use only the barangay collection schedules supplied in the current request. Do not invent dates, routes, services, policies, points, or redemption offers.
-     - If local information is missing or uncertain, say so plainly and direct the resident to their barangay office.
-     - Explain that photo assessments are suggestions and require official verification; never represent AI output as proof.
-  2. **Environmental guidance**:
+1. **Google Maps Grounding & Place Finder**:
+   - You can use Google Maps data to locate and recommend local Materials Recovery Facilities (MRFs), junk shops (chatarra), recycling centers, junk buyers, e-waste drop-offs, and barangay halls.
+   - When users ask where to drop off recyclables or find nearby waste facilities, recommend real, verifiable places.
+2. **Use approved local information for EcoBarangay questions**:
+   - Use only the barangay collection schedules supplied in the current request. Do not invent dates, routes, services, policies, points, or redemption offers.
+   - If local information is missing or uncertain, say so plainly and direct the resident to their barangay office.
+   - Explain that photo assessments are suggestions and require official verification; never represent AI output as proof.
+3. **Environmental guidance**:
    - Deep knowledge of Philippine Solid Waste Management (Republic Act 9003 - Ecological Solid Waste Management Act of 2000).
    - 4-Stream Waste Segregation:
      * Biodegradable / Nabubulok (Green): food leftovers, vegetable/fruit scraps, leaves, garden clippings.
@@ -297,14 +325,14 @@ YOUR CORE CAPABILITIES & INSTRUCTIONS:
      * Collection schedules, route tracking, MRF / junk shop map locator.
      * Community Feed for neighborhood updates and green initiatives.
 
-3. **Tone, Language & Formatting**:
+4. **Tone, Language & Formatting**:
    - Warm, respectful, articulate, and encouraging Filipino spirit (Bayanihan).
    - Fluent in English, Filipino / Tagalog, and Taglish. Seamlessly adapt to the user's preferred language.
-   - Use clean Markdown formatting: bold highlights, bullet points, numbered steps, code blocks (if requested), and organized paragraphs.
+   - Use clean Markdown formatting: bold highlights, bullet points, numbered steps, and organized paragraphs.
    - Keep answers concise yet thorough and actionable.
 
 CURRENT COMMUNITY CONTEXT:
-- Active Barangay: ${context?.barangayName ? 'Brgy. ' + context.barangayName : 'Community'}
+- Active Barangay: ${context?.barangayName ? 'Brgy. ' + context.barangayName : 'Philippines'}
 - Preferred UI Language: ${context?.lang || 'en'}`;
 
   const scheduleContext = context?.localSchedules?.length
@@ -313,12 +341,68 @@ CURRENT COMMUNITY CONTEXT:
         .join('\n')}`
     : '\n\nNo local collection schedules are available. Do not guess them; direct schedule questions to the barangay office.';
 
-  try {
-    const formattedContents = messages.map((m) => ({
-      role: m.role,
-      parts: [{ text: m.content }],
-    }));
+  const formattedContents = messages.map((m) => ({
+    role: m.role,
+    parts: [{ text: m.content }],
+  }));
 
+  const lastMessageText = messages[messages.length - 1]?.content?.toLowerCase() || '';
+  const isGeographicQuery =
+    lastMessageText.includes('near') ||
+    lastMessageText.includes('where') ||
+    lastMessageText.includes('saan') ||
+    lastMessageText.includes('mrf') ||
+    lastMessageText.includes('junk shop') ||
+    lastMessageText.includes('recycling center') ||
+    lastMessageText.includes('map') ||
+    lastMessageText.includes('drop off') ||
+    lastMessageText.includes('location');
+
+  try {
+    // If query relates to places or locations, enable Google Maps grounding tool
+    if (isGeographicQuery) {
+      const config: any = {
+        systemInstruction: `${systemInstruction}${scheduleContext}`,
+        tools: [{ googleMaps: {} }],
+      };
+      if (typeof context?.userLat === 'number' && typeof context?.userLng === 'number') {
+        config.toolConfig = {
+          retrievalConfig: {
+            latLng: {
+              latitude: context.userLat,
+              longitude: context.userLng,
+            },
+          },
+        };
+      }
+
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: formattedContents,
+        config,
+      });
+
+      const groundedPlaces: GroundedPlace[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (Array.isArray(chunks)) {
+        for (const chunk of chunks) {
+          if (chunk.maps?.uri && chunk.maps?.title) {
+            groundedPlaces.push({
+              title: chunk.maps.title,
+              uri: chunk.maps.uri,
+              placeId: chunk.maps.placeId,
+            });
+          }
+        }
+      }
+
+      return {
+        reply: response.text || 'Here is what I found for your location.',
+        groundedPlaces: groundedPlaces.length > 0 ? groundedPlaces : undefined,
+      };
+    }
+
+    // Standard conversational turn
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: formattedContents,
@@ -327,9 +411,27 @@ CURRENT COMMUNITY CONTEXT:
       },
     });
 
-    return response.text || 'I am here and ready to answer any questions you have!';
+    return {
+      reply: response.text || 'I am here and ready to answer any questions you have!',
+    };
   } catch (error) {
-    console.error('[Gemini AI] Chat request failed.');
-    return 'Paumanhin, nagkaroon ng pansamantalang aberya sa AI Assistant. Maaari mo bang ulitin ang iyong tanong?';
+    console.error('[Gemini AI] Chat request failed, attempting fallback.', error);
+    try {
+      // Fallback without tools if tool grounding had an issue
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: formattedContents,
+        config: {
+          systemInstruction: `${systemInstruction}${scheduleContext}`,
+        },
+      });
+      return {
+        reply: response.text || 'I am ready to help with your environmental questions.',
+      };
+    } catch (fallbackError) {
+      return {
+        reply: 'Paumanhin, nagkaroon ng pansamantalang aberya sa AI Assistant. Maaari mo bang ulitin ang iyong tanong?',
+      };
+    }
   }
 }

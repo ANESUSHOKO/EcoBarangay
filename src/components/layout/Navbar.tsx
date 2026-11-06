@@ -87,19 +87,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   const notifRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
+    if (!currentUser) {
+      setNotifications([]);
+      return;
+    }
     try {
       const data = await api.getNotifications(currentBarangay?.id);
       setNotifications(data || []);
     } catch (err) {
+      if (err instanceof Error && err.message.includes('Authentication is required')) {
+        setNotifications([]);
+        return;
+      }
       console.error('Error fetching notifications:', err);
     }
   };
 
   useEffect(() => {
+    if (!currentUser) {
+      setNotifications([]);
+      return;
+    }
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 10000);
     return () => clearInterval(interval);
-  }, [currentBarangay?.id]);
+  }, [currentUser?.id, currentBarangay?.id]);
 
   const handleMarkRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();

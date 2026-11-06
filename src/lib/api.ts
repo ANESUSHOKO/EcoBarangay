@@ -589,30 +589,36 @@ export const api = {
     ),
 
   // Notifications
-  getNotifications: (barangayId?: string) =>
-    safeCall(
+  getNotifications: (barangayId?: string) => {
+    if (!auth.currentUser) return Promise.resolve([]);
+    return safeCall(
       () => fetchJSON<AppNotification[]>(`/api/notifications${barangayId ? `?barangayId=${barangayId}` : ''}`),
       () => clientStore.getNotifications(barangayId)
-    ),
+    );
+  },
 
-  markNotificationRead: (id: string) =>
-    safeCall(
+  markNotificationRead: (id: string) => {
+    if (!auth.currentUser) return Promise.resolve(undefined as unknown as AppNotification);
+    return safeCall(
       () =>
         fetchJSON<AppNotification>(`/api/notifications/${id}/read`, {
           method: 'POST',
         }),
       () => clientStore.markNotificationRead(id)
-    ),
+    );
+  },
 
-  markAllNotificationsRead: (barangayId?: string) =>
-    safeCall(
+  markAllNotificationsRead: (barangayId?: string) => {
+    if (!auth.currentUser) return Promise.resolve({ success: true });
+    return safeCall(
       () =>
         fetchJSON<{ success: boolean }>('/api/notifications/read-all', {
           method: 'POST',
           body: JSON.stringify({ barangayId }),
         }),
       () => clientStore.markAllNotificationsRead(barangayId)
-    ),
+    );
+  },
 
   createNotification: (data: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) =>
     safeCall(
@@ -1022,10 +1028,22 @@ export const api = {
       })
     ),
 
-  chatWithAssistant: (messages: AIChatMessage[], context?: any) =>
+  chatWithAssistant: (
+    messages: AIChatMessage[],
+    context?: {
+      barangayName?: string;
+      barangayId?: string;
+      userLat?: number;
+      userLng?: number;
+      lang?: string;
+    }
+  ) =>
     safeCall(
       () =>
-        fetchJSON<{ reply: string }>('/api/ai/chat', {
+        fetchJSON<{
+          reply: string;
+          groundedPlaces?: Array<{ title: string; uri: string; placeId?: string }>;
+        }>('/api/ai/chat', {
           method: 'POST',
           body: JSON.stringify({ messages, context }),
         }),

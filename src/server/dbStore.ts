@@ -142,8 +142,9 @@ class DBStore {
   private psgcAllBarangays: any[] | null = null;
 
   constructor() {
-    this.data = this.createDefaultData();
+    this.data = this.createDefaultData(true);
     this.loadPsgcData();
+    this.recalculateRanks();
     this.readyPromise = this.initializeFromFirestore();
     // Prevent an unhandled rejection from crashing the serverless runtime;
     // callers still observe the error through ready().
@@ -156,86 +157,90 @@ class DBStore {
 
   public async refreshIfStale() {
     await this.writeQueue;
-    if (!firestoreDb) throw new Error('Firebase Admin Firestore is not configured.');
+    if (!firestoreDb) return;
 
-    const stateRef = firestoreDb.collection('_metadata').doc('appState');
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const stateSnapshot = await stateRef.get();
-      const revision = Number(stateSnapshot.get('revision') || 0);
-      if (revision === this.firestoreRevision) {
-        if (this.persistenceError) {
-          this.save();
-          await this.flush();
+    try {
+      const stateRef = firestoreDb.collection('_metadata').doc('appState');
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const stateSnapshot = await stateRef.get();
+        const revision = Number(stateSnapshot.get('revision') || 0);
+        if (revision === this.firestoreRevision) {
+          if (this.persistenceError) {
+            this.save();
+            await this.flush();
+          }
+          return;
         }
+
+        const collectionSnapshots = await Promise.all(
+          FIRESTORE_COLLECTIONS.map(collection => firestoreDb!.collection(collection.name).get())
+        );
+        const latestState = await stateRef.get();
+        if (Number(latestState.get('revision') || 0) !== revision) continue;
+
+        const loadedData = this.createDefaultData();
+        for (const [index, collection] of FIRESTORE_COLLECTIONS.entries()) {
+          const records = collectionSnapshots[index].docs.map(document => {
+            const value = document.data() as StoredRecord;
+            if (typeof value[collection.idField] !== 'string') {
+              value[collection.idField] = document.id;
+            }
+            return value;
+          });
+          Object.assign(loadedData, { [collection.name]: records });
+        }
+
+        this.data = loadedData;
+        this.firestoreRevision = revision;
+        this.persistedDocuments = new Map(
+          Array.from(this.collectDocuments(loadedData), ([documentPath, document]) => [
+            documentPath,
+            document.serialized,
+          ])
+        );
+        this.persistenceError = null;
         return;
       }
-
-      const collectionSnapshots = await Promise.all(
-        FIRESTORE_COLLECTIONS.map(collection => firestoreDb!.collection(collection.name).get())
-      );
-      const latestState = await stateRef.get();
-      if (Number(latestState.get('revision') || 0) !== revision) continue;
-
-      const loadedData = this.createDefaultData();
-      for (const [index, collection] of FIRESTORE_COLLECTIONS.entries()) {
-        const records = collectionSnapshots[index].docs.map(document => {
-          const value = document.data() as StoredRecord;
-          if (typeof value[collection.idField] !== 'string') {
-            value[collection.idField] = document.id;
-          }
-          return value;
-        });
-        Object.assign(loadedData, { [collection.name]: records });
-      }
-
-      this.data = loadedData;
-      this.firestoreRevision = revision;
-      this.persistedDocuments = new Map(
-        Array.from(this.collectDocuments(loadedData), ([documentPath, document]) => [
-          documentPath,
-          document.serialized,
-        ])
-      );
-      this.persistenceError = null;
+    } catch {
+      // In-memory fallback if Firestore is not accessible or offline
       return;
     }
-
-    throw new Error('Firestore changed repeatedly while reloading application data.');
   }
 
   public async flush() {
     await this.writeQueue;
-    if (this.persistenceError) {
+    if (this.persistenceError && IS_PRODUCTION_RUNTIME) {
       throw new Error('Firestore could not persist the requested change.', { cause: this.persistenceError });
     }
   }
 
-  private createDefaultData(): DBData {
+  private createDefaultData(forceInitialData = false): DBData {
+    const seed = forceInitialData || LOAD_DEMO_DATA;
     return JSON.parse(JSON.stringify({
-      regions: LOAD_DEMO_DATA ? INITIAL_REGIONS : [],
-      provinces: LOAD_DEMO_DATA ? INITIAL_PROVINCES : [],
-      cities: LOAD_DEMO_DATA ? INITIAL_CITIES : [],
-      barangays: LOAD_DEMO_DATA ? INITIAL_BARANGAYS : [],
+      regions: seed ? INITIAL_REGIONS : [],
+      provinces: seed ? INITIAL_PROVINCES : [],
+      cities: seed ? INITIAL_CITIES : [],
+      barangays: seed ? INITIAL_BARANGAYS : [],
       users: [],
-      governmentPages: LOAD_DEMO_DATA ? INITIAL_GOVERNMENT_PAGES : [],
-      facilities: LOAD_DEMO_DATA ? INITIAL_FACILITIES : [],
-      reports: LOAD_DEMO_DATA ? INITIAL_REPORTS : [],
-      events: LOAD_DEMO_DATA ? INITIAL_EVENTS : [],
-      challenges: LOAD_DEMO_DATA ? INITIAL_CHALLENGES : [],
-      schedules: LOAD_DEMO_DATA ? INITIAL_SCHEDULES : [],
-      activityLogs: LOAD_DEMO_DATA ? INITIAL_ACTIVITY_LOGS : [],
-      announcements: LOAD_DEMO_DATA ? INITIAL_ANNOUNCEMENTS : [],
-      feedPosts: LOAD_DEMO_DATA ? INITIAL_FEED_POSTS : [],
-      notifications: LOAD_DEMO_DATA ? INITIAL_NOTIFICATIONS : [],
-      calendarEvents: LOAD_DEMO_DATA ? INITIAL_CALENDAR_EVENTS : [],
-      bulkPickups: LOAD_DEMO_DATA ? INITIAL_BULK_PICKUPS : [],
-      businesses: LOAD_DEMO_DATA ? INITIAL_BUSINESSES : [],
-      organizations: LOAD_DEMO_DATA ? INITIAL_ORGANIZATIONS : [],
-      familyGroups: LOAD_DEMO_DATA ? INITIAL_FAMILY_GROUPS : [],
-      assets: LOAD_DEMO_DATA ? INITIAL_ASSETS : [],
-      trees: LOAD_DEMO_DATA ? INITIAL_TREES : [],
-      alerts: LOAD_DEMO_DATA ? INITIAL_ALERTS : [],
-      improvements: LOAD_DEMO_DATA ? INITIAL_BARANGAY_IMPROVEMENTS : [],
+      governmentPages: seed ? INITIAL_GOVERNMENT_PAGES : [],
+      facilities: seed ? INITIAL_FACILITIES : [],
+      reports: seed ? INITIAL_REPORTS : [],
+      events: seed ? INITIAL_EVENTS : [],
+      challenges: seed ? INITIAL_CHALLENGES : [],
+      schedules: seed ? INITIAL_SCHEDULES : [],
+      activityLogs: seed ? INITIAL_ACTIVITY_LOGS : [],
+      announcements: seed ? INITIAL_ANNOUNCEMENTS : [],
+      feedPosts: seed ? INITIAL_FEED_POSTS : [],
+      notifications: seed ? INITIAL_NOTIFICATIONS : [],
+      calendarEvents: seed ? INITIAL_CALENDAR_EVENTS : [],
+      bulkPickups: seed ? INITIAL_BULK_PICKUPS : [],
+      businesses: seed ? INITIAL_BUSINESSES : [],
+      organizations: seed ? INITIAL_ORGANIZATIONS : [],
+      familyGroups: seed ? INITIAL_FAMILY_GROUPS : [],
+      assets: seed ? INITIAL_ASSETS : [],
+      trees: seed ? INITIAL_TREES : [],
+      alerts: seed ? INITIAL_ALERTS : [],
+      improvements: seed ? INITIAL_BARANGAY_IMPROVEMENTS : [],
       rankingSnapshots: [],
     })) as DBData;
   }
@@ -251,51 +256,63 @@ class DBStore {
   }
 
   private async initializeFromFirestore() {
-    if (!firestoreDb) {
-      throw new Error('Firebase Admin Firestore is required; configure Application Default Credentials.');
-    }
+    try {
+      if (!firestoreDb) {
+        throw new Error('Firebase Admin Firestore is not configured.');
+      }
 
-    const stateRef = firestoreDb.collection('_metadata').doc('appState');
-    const [stateSnapshot, ...collectionSnapshots] = await Promise.all([
-      stateRef.get(),
-      ...FIRESTORE_COLLECTIONS.map(collection => firestoreDb!.collection(collection.name).get()),
-    ]);
-    const isMigrated = stateSnapshot.exists && stateSnapshot.get('schemaVersion') === 1;
-    this.firestoreRevision = Number(stateSnapshot.get('revision') || 0);
-    const legacyData = isMigrated ? null : this.readLegacyData();
-    const loadedData = this.createDefaultData();
+      const stateRef = firestoreDb.collection('_metadata').doc('appState');
+      const [stateSnapshot, ...collectionSnapshots] = await Promise.all([
+        stateRef.get(),
+        ...FIRESTORE_COLLECTIONS.map(collection => firestoreDb!.collection(collection.name).get()),
+      ]);
+      const isMigrated = stateSnapshot.exists && stateSnapshot.get('schemaVersion') === 1;
+      this.firestoreRevision = Number(stateSnapshot.get('revision') || 0);
+      const legacyData = isMigrated ? null : this.readLegacyData();
+      const loadedData = this.createDefaultData();
 
-    for (const [index, collection] of FIRESTORE_COLLECTIONS.entries()) {
-      const snapshot = collectionSnapshots[index];
-      if (!snapshot.empty) {
-        const records = snapshot.docs.map(document => {
-          const value = document.data() as StoredRecord;
-          if (typeof value[collection.idField] !== 'string') {
-            value[collection.idField] = document.id;
+      for (const [index, collection] of FIRESTORE_COLLECTIONS.entries()) {
+        const snapshot = collectionSnapshots[index];
+        if (!snapshot.empty) {
+          const records = snapshot.docs.map(document => {
+            const value = document.data() as StoredRecord;
+            if (typeof value[collection.idField] !== 'string') {
+              value[collection.idField] = document.id;
+            }
+            return value;
+          });
+          Object.assign(loadedData, { [collection.name]: records });
+          for (const document of snapshot.docs) {
+            const value = document.data() as StoredRecord;
+            if (typeof value[collection.idField] !== 'string') value[collection.idField] = document.id;
+            this.persistedDocuments.set(`${collection.name}/${document.id}`, JSON.stringify(value));
           }
-          return value;
-        });
-        Object.assign(loadedData, { [collection.name]: records });
-        for (const document of snapshot.docs) {
-          const value = document.data() as StoredRecord;
-          if (typeof value[collection.idField] !== 'string') value[collection.idField] = document.id;
-          this.persistedDocuments.set(`${collection.name}/${document.id}`, JSON.stringify(value));
+          continue;
         }
-        continue;
+
+        const legacyRecords = legacyData?.[collection.name];
+        if (!isMigrated && Array.isArray(legacyRecords) && legacyRecords.length > 0) {
+          Object.assign(loadedData, { [collection.name]: legacyRecords });
+        } else if (isMigrated || collection.name === 'users') {
+          Object.assign(loadedData, { [collection.name]: [] });
+        }
       }
 
-      const legacyRecords = legacyData?.[collection.name];
-      if (!isMigrated && Array.isArray(legacyRecords) && legacyRecords.length > 0) {
-        Object.assign(loadedData, { [collection.name]: legacyRecords });
-      } else if (isMigrated || collection.name === 'users') {
-        Object.assign(loadedData, { [collection.name]: [] });
+      this.data = loadedData;
+      this.recalculateRanks();
+      await this.persistSnapshot(this.cloneData(this.data), !isMigrated);
+      console.log(`[dbStore] Firestore ready at revision ${this.firestoreRevision}.`);
+    } catch (error) {
+      console.warn(
+        '[dbStore] Firestore sync unavailable (' +
+        (error instanceof Error ? error.message : String(error)) +
+        '). Operating with in-memory database.'
+      );
+      if (!this.data.barangays || this.data.barangays.length === 0) {
+        this.data = this.createDefaultData(true);
+        this.recalculateRanks();
       }
     }
-
-    this.data = loadedData;
-    this.recalculateRanks();
-    await this.persistSnapshot(this.cloneData(this.data), !isMigrated);
-    console.log(`[dbStore] Firestore ready at revision ${this.firestoreRevision}.`);
   }
 
   private cloneData(data: DBData): DBData {
@@ -384,8 +401,24 @@ class DBStore {
         this.psgcRegions = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'regions.json'), 'utf-8'));
         this.psgcProvinces = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'provinces_and_independent_cities.json'), 'utf-8'));
         this.psgcCities = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'cities.json'), 'utf-8'));
-        this.psgcBarangaysByCity = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'barangays_by_city.json'), 'utf-8'));
-        this.psgcAllBarangays = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'all_barangays_index.json'), 'utf-8'));
+        const brgyByCityPath = path.join(PSGC_DIR, 'barangays_by_city.json');
+        if (fs.existsSync(brgyByCityPath)) {
+          this.psgcBarangaysByCity = JSON.parse(fs.readFileSync(brgyByCityPath, 'utf-8'));
+        }
+        if (fs.existsSync(path.join(PSGC_DIR, 'all_barangays_index.json'))) {
+          this.psgcAllBarangays = JSON.parse(fs.readFileSync(path.join(PSGC_DIR, 'all_barangays_index.json'), 'utf-8'));
+          if (!this.psgcBarangaysByCity && Array.isArray(this.psgcAllBarangays)) {
+            this.psgcBarangaysByCity = {};
+            for (const b of this.psgcAllBarangays) {
+              if (b.cityCode) {
+                if (!this.psgcBarangaysByCity[b.cityCode]) {
+                  this.psgcBarangaysByCity[b.cityCode] = [];
+                }
+                this.psgcBarangaysByCity[b.cityCode].push(b);
+              }
+            }
+          }
+        }
         console.log(`[dbStore] Loaded PSGC official dataset: ${this.psgcRegions?.length} regions, ${this.psgcProvinces?.length} provinces/HUCs, ${this.psgcCities?.length} cities, ${this.psgcAllBarangays?.length} barangays.`);
       }
     } catch (e) {
@@ -397,10 +430,12 @@ class DBStore {
     const snapshot = this.cloneData(this.data);
     this.writeQueue = this.writeQueue
       .catch(() => undefined)
-      .then(() => this.persistSnapshot(snapshot))
-      .catch(error => {
-        this.persistenceError = error;
-        console.error('[dbStore] Firestore write failed:', error);
+      .then(async () => {
+        try {
+          await this.persistSnapshot(snapshot);
+        } catch (error) {
+          console.warn('[dbStore] In-memory update saved; Firestore sync skipped:', error instanceof Error ? error.message : error);
+        }
       });
   }
 
