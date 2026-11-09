@@ -528,6 +528,16 @@ export const GarbageSchedulePage: React.FC<GarbageSchedulePageProps> = ({
               <div className="text-[11px] text-emerald-200/90 bg-emerald-950/50 p-2 rounded-xl border border-emerald-500/20">
                 💡 {nextCollection.schedule.instructions}
               </div>
+              <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                <span className="text-[10px] text-slate-300">Missed by truck?</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate ? onNavigate('reports') : window.location.assign('#reports')}
+                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <AlertCircle className="w-3 h-3" /> Report Missed Collection
+                </button>
+              </div>
             </div>
           )}
         </div>

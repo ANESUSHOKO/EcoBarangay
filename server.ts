@@ -91,6 +91,25 @@ export async function createApp(options: AppOptions = {}) {
     return true;
   }
 
+  const authRequestTimes = new Map<string, number[]>();
+
+  function allowAuthRequest(key: string, limit = 20, windowMs = 15 * 60_000): boolean {
+    const now = Date.now();
+    if (authRequestTimes.size > 2_000) {
+      for (const [requestKey, timestamps] of authRequestTimes) {
+        if (!timestamps.some(timestamp => now - timestamp < windowMs)) authRequestTimes.delete(requestKey);
+      }
+    }
+    const recent = (authRequestTimes.get(key) || []).filter(timestamp => now - timestamp < windowMs);
+    if (recent.length >= limit) {
+      authRequestTimes.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    authRequestTimes.set(key, recent);
+    return true;
+  }
+
   app.use(express.json({ limit: '10mb' }));
 
   const publicReadRoutes = [
@@ -162,7 +181,43 @@ export async function createApp(options: AppOptions = {}) {
       const identity = await firebaseAuth.verifyIdToken(token);
       const isRegistration = req.path === '/api/auth/register' && req.method === 'POST';
 
-      const storedAppUser = identity.email ? dbStore.getUserByEmail(identity.email) : undefined;
+      let storedAppUser = identity.email ? dbStore.getUserByEmail(identity.email) : undefined;
+      if (!storedAppUser && identity.uid) {
+        storedAppUser = dbStore.getUserById(identity.uid);
+      }
+
+      // If user is authenticated in Firebase but no profile exists yet, auto-create one
+      if (!storedAppUser && !isRegistration && identity.email) {
+        const defaultBarangay = dbStore.getBarangays()[0] || {
+          id: 'brgy-001',
+          name: 'San Antonio',
+          cityName: 'Pasig City',
+          provinceName: 'Metro Manila',
+          regionName: 'NCR',
+        };
+        storedAppUser = dbStore.createUser({
+          email: identity.email.toLowerCase(),
+          firebaseUid: identity.uid,
+          fullName: (identity.name as string) || identity.email.split('@')[0] || 'EcoBarangay Resident',
+          role: 'RESIDENT',
+          barangayId: defaultBarangay.id,
+          barangayName: defaultBarangay.name,
+          city: defaultBarangay.cityName,
+          province: defaultBarangay.provinceName,
+          region: defaultBarangay.regionName,
+          avatarUrl: (identity.picture as string) || undefined,
+          photoUrl: (identity.picture as string) || undefined,
+          verifiedOfficial: false,
+          householdRegistered: false,
+        });
+      }
+
+      // If existing user's firebaseUid is missing or was updated, sync it
+      if (storedAppUser && (!storedAppUser.firebaseUid || storedAppUser.firebaseUid !== identity.uid)) {
+        storedAppUser.firebaseUid = identity.uid;
+        dbStore.updateUser(storedAppUser.id, { firebaseUid: identity.uid });
+      }
+
       const isBootstrapAdmin = isBootstrapSystemAdmin(
         identity.email,
         identity.uid,
@@ -175,9 +230,6 @@ export async function createApp(options: AppOptions = {}) {
         : storedAppUser;
       if (!appUser && !isRegistration) {
         return res.status(403).json({ error: 'No EcoBarangay profile is linked to this account.' });
-      }
-      if (appUser?.firebaseUid && appUser.firebaseUid !== identity.uid) {
-        return res.status(403).json({ error: 'This profile is linked to a different Firebase account.' });
       }
 
       const authenticatedRequest = req as AuthenticatedRequest;
@@ -291,6 +343,11 @@ export async function createApp(options: AppOptions = {}) {
 
   // Verify a legacy password only to allow Firebase Auth account migration.
   app.post('/api/auth/legacy-migration-check', (req, res) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || 'unknown';
+    if (!allowAuthRequest(clientIp, 10, 15 * 60_000)) {
+      return res.status(429).json({ error: 'Too many authentication attempts. Please wait 15 minutes before retrying.' });
+    }
+
     const { email, password } = req.body;
     if (typeof email !== 'string' || typeof password !== 'string') {
       return res.status(400).json({ error: 'Email and password are required.' });
@@ -307,6 +364,11 @@ export async function createApp(options: AppOptions = {}) {
 
   // Auth: Register
   app.post('/api/auth/register', (req, res) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || 'unknown';
+    if (!allowAuthRequest(clientIp, 25, 15 * 60_000)) {
+      return res.status(429).json({ error: 'Too many registration requests. Please wait a few minutes before retrying.' });
+    }
+
     const {
       email,
       fullName,
@@ -484,8 +546,14 @@ export async function createApp(options: AppOptions = {}) {
   app.get('/api/auth/user/:id', (req, res) => {
     const user = dbStore.getUserById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    const { passwordHash: _, ...safeUser } = user;
-    res.json(safeUser);
+    const authReq = req as AuthenticatedRequest;
+    const isOwner = authReq.appUser?.id === user.id;
+    const isOfficial = authReq.appUser && hasSystemAdminCapabilities(authReq.appUser);
+    const { passwordHash: _, householdAddress, ...safeUser } = user;
+    if (isOwner || isOfficial) {
+      return res.json({ ...safeUser, householdAddress });
+    }
+    return res.json(safeUser);
   });
 
   // Location: Hierarchy (Regions, Provinces, Cities)
@@ -1467,9 +1535,9 @@ export async function createApp(options: AppOptions = {}) {
   app.post('/api/waste/log', (req, res) => {
     const { userId, kg, wasteType, photoUrl, autoPostToFeed } = req.body;
     const quantity = typeof kg === 'number' ? kg : Number(kg);
-    if (!userId || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000 ||
+    if (!userId || !Number.isFinite(quantity) || quantity <= 0 || quantity > 50 ||
         typeof wasteType !== 'string' || !wasteType.trim()) {
-      return res.status(400).json({ error: 'A positive weight up to 1,000 kg and a waste type are required.' });
+      return res.status(400).json({ error: 'Individual daily waste submissions must be between 0.1 kg and 50 kg. For larger amounts, schedule an official Bulk Waste Pickup.' });
     }
     let safePhotoUrl: string | undefined;
     if (photoUrl !== undefined && photoUrl !== '') {
@@ -1494,6 +1562,18 @@ export async function createApp(options: AppOptions = {}) {
     if (!updatedUser) return res.status(404).json({ error: 'User not found.' });
     const { passwordHash: _, ...safeUser } = updatedUser;
     res.json({ success: true, user: safeUser });
+  });
+
+  // Points Audit Trail
+  app.get('/api/points/audit', (req, res) => {
+    const user = (req as AuthenticatedRequest).appUser;
+    if (!user) return res.status(401).json({ error: 'Authentication is required.' });
+    const isOfficial = hasSystemAdminCapabilities(user);
+    const targetUserId = typeof req.query.userId === 'string' ? req.query.userId : user.id;
+    if (!isOfficial && targetUserId !== user.id) {
+      return res.status(403).json({ error: 'You may only view your own point audit history.' });
+    }
+    res.json(dbStore.getPointAuditLogs(targetUserId));
   });
 
   // Activity logs

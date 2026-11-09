@@ -34,7 +34,8 @@ import {
   PhotoValidationResult,
   AIChatMessage,
   RankingSnapshot,
-  ReportAnalysisSuggestion
+  ReportAnalysisSuggestion,
+  PointAuditEntry
 } from '../types';
 import { clientStore } from './clientStore';
 import { auth } from './firebase';
@@ -551,6 +552,12 @@ export const api = {
       () => clientStore.getActivityLogs(userId)
     ),
 
+  getPointAuditLogs: (userId?: string) =>
+    safeCall(
+      () => fetchJSON<PointAuditEntry[]>(`/api/points/audit${userId ? `?userId=${userId}` : ''}`),
+      () => []
+    ),
+
   getPendingEcoActivities: (barangayId: string) =>
     fetchJSON<UserActivityLog[]>(`/api/activity-logs/pending?barangayId=${encodeURIComponent(barangayId)}`),
 
@@ -1038,7 +1045,10 @@ export const api = {
       lang?: string;
     }
   ) =>
-    safeCall(
+    safeCall<{
+      reply: string;
+      groundedPlaces?: Array<{ title: string; uri: string; placeId?: string }>;
+    }>(
       () =>
         fetchJSON<{
           reply: string;

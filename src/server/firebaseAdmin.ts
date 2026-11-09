@@ -80,7 +80,7 @@ if (useProductionData && credentialsPath && !fs.existsSync(credentialsPath)) {
   throw new Error(`Firebase service-account file was not found at GOOGLE_APPLICATION_CREDENTIALS: ${credentialsPath}`);
 }
 if (isNetlifyRuntime && !serviceAccountJson) {
-  throw new Error('Set FIREBASE_SERVICE_ACCOUNT in Netlify environment variables for Firebase Admin access.');
+  console.warn('[firebaseAdmin] Notice: FIREBASE_SERVICE_ACCOUNT is not set in Netlify environment. Set it in Netlify settings for server-side Firebase Admin sync.');
 }
 
 const projectId = useEmulator

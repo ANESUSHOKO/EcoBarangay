@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../../types';
 import { api } from '../../lib/api';
+import { saveUserToFirestore } from '../../lib/firestoreService';
 import { Home, Users, MapPin, Sparkles, X, CheckCircle2, ShieldCheck, Trash2, Loader2 } from 'lucide-react';
 
 interface RegisterHouseholdModalProps {
@@ -48,6 +49,7 @@ export const RegisterHouseholdModal: React.FC<RegisterHouseholdModalProps> = ({
 
       if (res.success && res.user) {
         onUserUpdate(res.user);
+        void saveUserToFirestore(res.user);
         setSuccessMsg('Household details saved. They do not automatically grant Eco Points.');
         setTimeout(() => {
           setSuccessMsg(null);

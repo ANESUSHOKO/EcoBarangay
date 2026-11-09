@@ -1,9 +1,175 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Application data is accessed only through the trusted server API.
+
+    // Default Deny: close all unspecified paths
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // Authentication & authorization helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isOfficialOrAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'SYSTEM_ADMIN' ||
+        request.auth.token.role == 'BARANGAY_OFFICIAL' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (getUserData().role == 'SYSTEM_ADMIN' ||
+          (getUserData().role == 'BARANGAY_OFFICIAL' && getUserData().verifiedOfficial == true)))
+      );
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'SYSTEM_ADMIN' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         getUserData().role == 'SYSTEM_ADMIN')
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Connection testing doc
+    match /test/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Users collection:
+    // Residents can read their own profile, officials/admins can view for directory/governance.
+    // Privileged fields (role, verifiedOfficial, ecoPoints, ecoScore) cannot be altered by regular users.
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        // New users default to RESIDENT role without unverified privileges
+        incoming().role == 'RESIDENT' &&
+        (incoming().verifiedOfficial == false || incoming().verifiedOfficial == null)
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (isOwner(userId) && !incoming().diff(existing()).affectedKeys().hasAny(['role', 'verifiedOfficial', 'ecoPoints', 'ecoScore'])) ||
+        (isOfficialOrAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verifiedOfficial', 'officialAccessRequest', 'ecoPoints', 'ecoScore']))
+      );
+      allow delete: if isAdmin() || isOwner(userId);
+    }
+
+    // Environmental Reports:
+    // Public read for community transparency.
+    // Residents can create reports with status 'Submitted'.
+    // Only officials/admins can transition status to Under Review, Assigned, In Progress, Resolved.
+    // Residents can request reopening or submit feedback on their own reports.
+    match /reports/{reportId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().reporterId == request.auth.uid && (
+        incoming().status == 'Submitted' || incoming().status == null
+      );
+      allow update: if isSignedIn() && (
+        isOfficialOrAdmin() ||
+        (isOwner(existing().reporterId) && incoming().diff(existing()).affectedKeys().hasOnly(['reopenRequest', 'residentFeedback', 'residentRating']))
+      );
+      allow delete: if isOfficialOrAdmin();
+    }
+
+    // Point Audit Log:
+    // Immutable record of every eco-point award or deduction
+    match /pointAuditLog/{auditId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isOfficialOrAdmin());
+      allow create: if isOfficialOrAdmin();
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    // Activity Logs / Waste Logging:
+    match /activityLogs/{logId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isOfficialOrAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isOfficialOrAdmin() || (isOwner(existing().userId) && existing().status == 'Pending');
+      allow delete: if isOfficialOrAdmin();
+    }
+
+    // Barangay Directory & Cleanliness Rankings
+    match /barangays/{barangayId} {
+      allow read: if true;
+      allow write: if isOfficialOrAdmin();
+    }
+
+    // Facilities (MRF, Junk Shops, Composting, E-Waste)
+    match /facilities/{facilityId} {
+      allow read: if true;
+      allow write: if isOfficialOrAdmin();
+    }
+
+    // Schedules (Garbage collection schedules)
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow write: if isOfficialOrAdmin();
+    }
+
+    // Bulk Pickup Requests
+    match /bulkPickups/{pickupId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isOfficialOrAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isOfficialOrAdmin() || (isOwner(existing().userId) && existing().status == 'Pending');
+      allow delete: if isOfficialOrAdmin();
+    }
+
+    // Events & Community Cleanups
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isOfficialOrAdmin();
+    }
+
+    // Challenges & Gamification
+    match /challenges/{challengeId} {
+      allow read: if true;
+      allow write: if isOfficialOrAdmin();
+    }
+
+    // Community Feed Posts
+    match /feedPosts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid;
+      allow update: if isSignedIn() && (isOwner(existing().authorId) || isOfficialOrAdmin());
+      allow delete: if isSignedIn() && (isOwner(existing().authorId) || isOfficialOrAdmin());
+    }
+
+    // Official Announcements
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isOfficialOrAdmin();
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isOfficialOrAdmin());
+      allow write: if isOfficialOrAdmin();
+    }
+
+    // Eco Projects & Community Polls
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isOfficialOrAdmin();
+    }
+
+    match /polls/{pollId} {
+      allow read: if true;
+      allow create, delete: if isOfficialOrAdmin();
+      allow update: if isSignedIn(); // For voting
     }
   }
 }

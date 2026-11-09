@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../../types';
 import { api } from '../../lib/api';
+import { saveUserToFirestore } from '../../lib/firestoreService';
 import { ThemeMode } from '../../lib/theme';
 import { compressImage } from '../../lib/compressImage';
 import { X, User as UserIcon, Phone, MapPin, Camera, Save, CheckCircle2, AlertCircle, Moon, Sun } from 'lucide-react';
@@ -97,6 +98,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
       if (res.success && res.user) {
         onUpdateUser(res.user);
+        void saveUserToFirestore(res.user);
         setSuccess(true);
         setTimeout(() => {
           setSuccess(false);

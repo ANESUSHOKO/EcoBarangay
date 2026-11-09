@@ -3,6 +3,7 @@ import { api } from './lib/api';
 import { User, Barangay, Language } from './types';
 import { ThemeMode, getInitialTheme, setThemeMode } from './lib/theme';
 import { auth } from './lib/firebase';
+import { getUserFromFirestore } from './lib/firestoreService';
 import { hasSystemAdminCapabilities } from './server/accessControl';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Navbar, LocationSelectorModal, SegregationGuideModal, ProfileSettingsModal, MobileBottomNav, EcoBotChatModal } from './components';
@@ -41,14 +42,6 @@ export function App() {
   const [isGuideModalOpen, setIsGuideModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isEcoBotOpen, setIsEcoBotOpen] = useState<boolean>(false);
-  const [isGmpQuotaExceeded, setIsGmpQuotaExceeded] = useState<boolean>(false);
-
-  // Listen for Google Maps quota exceeded events
-  useEffect(() => {
-    const handleQuota = () => setIsGmpQuotaExceeded(true);
-    window.addEventListener('gmp-quota-exceeded', handleQuota);
-    return () => window.removeEventListener('gmp-quota-exceeded', handleQuota);
-  }, []);
 
   // Set active tab and sync with browser URL/history
   const setActiveTab = (tab: string, replace = false) => {
@@ -122,7 +115,20 @@ export function App() {
         const barangay = await api.getBarangayById(user.barangayId);
         if (barangay) setCurrentBarangay(barangay);
       } catch (error) {
-        console.error('Unable to restore the authenticated user profile:', error);
+        console.warn('Backend profile fetch note, checking Firestore directly:', error);
+        try {
+          const fsUser = await getUserFromFirestore(firebaseUser.uid);
+          if (fsUser) {
+            setCurrentUser(fsUser);
+            setOfficeView(fsUser.role === 'SYSTEM_ADMIN' ? 'administration' : 'operations');
+            localStorage.setItem('ecobarangay_current_user_id', fsUser.id);
+            const barangay = await api.getBarangayById(fsUser.barangayId);
+            if (barangay) setCurrentBarangay(barangay);
+            return;
+          }
+        } catch (fsErr) {
+          console.error('Firestore fallback profile lookup failed:', fsErr);
+        }
         setCurrentUser(null);
         localStorage.removeItem('ecobarangay_current_user_id');
       }
@@ -180,24 +186,6 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200 overflow-x-hidden w-full">
-      {/* Google Maps Quota Notice */}
-      {isGmpQuotaExceeded && (
-        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
-          <span>
-            Google Maps Platform quota reached. If you are the app owner, visit{' '}
-            <a
-              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-semibold text-amber-950 hover:text-amber-800"
-            >
-              maps developer site
-            </a>{' '}
-            for instructions to update your account.
-          </span>
-        </div>
-      )}
-
       {/* Navbar */}
       <Navbar
         currentUser={currentUser}

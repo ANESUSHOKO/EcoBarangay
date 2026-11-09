@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
+import { saveUserToFirestore } from '../../lib/firestoreService';
 import { compressImage } from '../../lib/compressImage';
-import { User, Barangay, GarbageSchedule, UserActivityLog, Announcement, Language } from '../../types';
+import { User, Barangay, GarbageSchedule, UserActivityLog, Announcement, Language, PointAuditEntry } from '../../types';
 import { getTranslation } from '../../lib/i18n';
 import {
   Award,
@@ -25,6 +26,8 @@ import {
   ShieldCheck,
   User as UserIcon,
   UserCheck,
+  BookOpen,
+  History,
 } from 'lucide-react';
 import { RegisterHouseholdModal } from '../../components/modals';
 
@@ -185,16 +188,46 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
     }
   };
 
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<PointAuditEntry[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
+  const handleOpenAuditModal = async () => {
+    setAuditModalOpen(true);
+    setLoadingAudit(true);
+    try {
+      const entries = await api.getPointAuditLogs(currentUser.id);
+      setAuditLogs(entries || []);
+    } catch (err) {
+      console.error('Failed to load point audit logs:', err);
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+
   const handleLogWasteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const kgVal = parseFloat(wasteKg);
-    if (isNaN(kgVal) || kgVal <= 0) return;
+    if (isNaN(kgVal) || kgVal <= 0) {
+      setWastePhotoError('Please provide a positive waste weight.');
+      return;
+    }
+    if (kgVal > 50) {
+      setWastePhotoError('Individual daily submissions are limited to 50 kg. For bulk waste, schedule an official Bulk Waste Pickup.');
+      return;
+    }
 
     setSubmittingWaste(true);
     try {
       const res = await api.logWaste(currentUser.id, kgVal, wasteType, photoUrl || undefined, autoPostToFeed);
       if (res.success && res.user) {
         onUserUpdate(res.user);
+        try {
+          void saveUserToFirestore(res.user);
+        } catch (fsErr) {
+          console.warn('Firestore user update notice:', fsErr);
+        }
         setLogSuccessMessage('Activity submitted. Eco Points and recycling totals update after official verification.');
         setTimeout(() => {
           setLogSuccessMessage(null);
@@ -259,6 +292,25 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
               <div className="text-xs text-slate-300 font-bold uppercase tracking-wider">Eco Points</div>
               <div className="text-2xl font-black text-amber-400 flex items-center justify-center gap-1">
                 ⚡ {currentUser.ecoPoints}
+              </div>
+              <div className="flex items-center justify-center gap-1.5 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setRulesModalOpen(true)}
+                  className="text-[10px] text-emerald-200 hover:text-white underline font-semibold flex items-center gap-0.5"
+                  title="View points earning and redemption rules"
+                >
+                  <BookOpen className="w-2.5 h-2.5" /> Rules
+                </button>
+                <span className="text-[10px] text-white/40">•</span>
+                <button
+                  type="button"
+                  onClick={handleOpenAuditModal}
+                  className="text-[10px] text-emerald-200 hover:text-white underline font-semibold flex items-center gap-0.5"
+                  title="View point transaction audit history"
+                >
+                  <History className="w-2.5 h-2.5" /> Audit
+                </button>
               </div>
             </div>
 
@@ -604,6 +656,161 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
         currentUser={currentUser}
         onUserUpdate={onUserUpdate}
       />
+
+      {/* Eco-Points Rules & Earning Guide Modal */}
+      {rulesModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Eco Points Policy & Earning Rules</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Published barangay sustainability rewards guide</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRulesModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300">
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl space-y-2">
+                <h4 className="font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  How to Earn Verified Eco Points
+                </h4>
+                <ul className="list-disc pl-5 space-y-1.5 text-slate-700 dark:text-slate-300">
+                  <li><strong>Recycling Submissions:</strong> Earn 5–10 Eco Points per kilogram of verified segregated materials (PET bottles, aluminum, cardboard, clean scrap).</li>
+                  <li><strong>Environmental Complaint Resolution:</strong> Earn +30 Eco Points when a genuine reported violation (e.g., illegal dumping or clogged drain) is inspected and officially resolved.</li>
+                  <li><strong>Community Cleanup Drives:</strong> Earn +50 Eco Points upon verified participation at an official barangay cleanup event.</li>
+                  <li><strong>Waste Segregation Quizzes:</strong> Earn +10 Eco Points per passed waste education module.</li>
+                </ul>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
+                <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  Integrity, Verification & Anti-Abuse Rules
+                </h4>
+                <ul className="list-disc pl-5 space-y-1.5 text-slate-600 dark:text-slate-400">
+                  <li><strong>Official Human Verification:</strong> All recycling submissions are marked <em>Pending</em> and verified by an authorized barangay officer or MRF in-charge before points are credited.</li>
+                  <li><strong>Daily Limit (50 kg):</strong> Individual resident submissions are capped at 50 kg per day. Commercial or bulk disposal must use the official Bulk Waste Pickup workflow.</li>
+                  <li><strong>No Duplicate Rewards:</strong> A report or event may only be credited once. Reopened or duplicated tickets do not award repeat points.</li>
+                  <li><strong>Audit Trail:</strong> Every point addition or deduction is logged in an immutable audit ledger with the verified official's identity.</li>
+                </ul>
+              </div>
+
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-2">
+                <h4 className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-amber-600" />
+                  Point Redemption & Community Privileges
+                </h4>
+                <p className="text-slate-700 dark:text-slate-300">
+                  Accumulated Eco Points can be redeemed at your local Barangay Hall or participating green partner merchants for vegetable seeds, organic compost bags, reusable canvas totes, and community certificate badges.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setRulesModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-900 dark:bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+              >
+                Close Guide
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Point Audit Trail Modal */}
+      {auditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Eco-Points Audit History</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Traceable ledger of all point rewards and adjustments</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuditModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {loadingAudit ? (
+                <div className="p-8 text-center space-y-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto" />
+                  <p className="text-xs text-slate-500">Retrieving official audit records...</p>
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <History className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No point adjustments recorded yet</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Your point transactions will appear here with verification timestamps and authorized officer details once activities are verified.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {auditLogs.map(entry => (
+                    <div
+                      key={entry.id}
+                      className="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            {entry.activityType}
+                          </span>
+                          <span>{entry.reason}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {new Date(entry.timestamp).toLocaleString()} • Ref: #{entry.referenceId || entry.id.slice(0, 8)}
+                          {entry.verifiedBy && ` • Verified by Official #${entry.verifiedBy.slice(0, 6)}`}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`text-sm font-black ${entry.pointsDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                          {entry.pointsDelta >= 0 ? `+${entry.pointsDelta}` : entry.pointsDelta} pts
+                        </span>
+                        <div className="text-[10px] text-slate-400">Balance: {entry.resultingBalance}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setAuditModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-900 dark:bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+              >
+                Close Audit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

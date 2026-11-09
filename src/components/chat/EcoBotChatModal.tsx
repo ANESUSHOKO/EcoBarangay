@@ -69,8 +69,8 @@ export const EcoBotChatModal: React.FC<EcoBotChatModalProps> = ({
         content: `Mabuhay! 👋 Ako si **EcoBot**, ang iyong AI Assistant para sa EcoBarangay.
         
 Maaari mo akong tanungin tungkol sa:
-• **Paghahanap ng mga MRF, junk shops, at recycling facilities** sa tulong ng **Google Maps**
-• **Tamang Solid Waste Management at RA 9003**
+• **Paghahanap ng mga MRF, junk shops, at recycling facilities sa komunidad**
+• **Tamang Solid Waste Management at batas na RA 9003**
 • **Koleksyon ng basura at schedule sa iyong barangay**
 • **Pagkuha ng Eco Points at pag-file ng environmental reports**
 
@@ -189,7 +189,7 @@ Ano ang maitutulong ko sa iyo ngayon?`,
                 <span>
                   {currentBarangay ? `Brgy. ${currentBarangay.name}, ${currentBarangay.cityName}` : 'Philippine Eco Network'}
                 </span>
-                <span className="text-emerald-300/60">· Google Maps Grounded</span>
+                <span className="text-emerald-300/60">· Community AI</span>
               </p>
             </div>
           </div>

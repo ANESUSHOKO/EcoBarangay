@@ -294,6 +294,20 @@ export interface UserActivityLog {
   residentName?: string;
 }
 
+export interface PointAuditEntry {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  pointsDelta: number;
+  resultingBalance: number;
+  reason: string;
+  activityType: 'Recycling' | 'Report' | 'Event' | 'Challenge' | 'Education' | 'Adjustment' | 'Redemption';
+  referenceId?: string;
+  evidenceUrl?: string;
+  timestamp: string;
+  verifiedBy?: string;
+}
+
 export interface Announcement {
   id: string;
   barangayId: string;

@@ -304,9 +304,9 @@ Ano ang nais mong itanong o pag-usapan ngayon?`,
 You are powered by Google Gemini and live on the EcoBarangay web platform in the Philippines.
 
 YOUR CORE CAPABILITIES & INSTRUCTIONS:
-1. **Google Maps Grounding & Place Finder**:
-   - You can use Google Maps data to locate and recommend local Materials Recovery Facilities (MRFs), junk shops (chatarra), recycling centers, junk buyers, e-waste drop-offs, and barangay halls.
-   - When users ask where to drop off recyclables or find nearby waste facilities, recommend real, verifiable places.
+1. **Local Facilities & Drop-off Finder**:
+   - You can help residents locate and recommend local Materials Recovery Facilities (MRFs), junk shops (chatarra), recycling hubs, junk buyers, e-waste drop-offs, and barangay halls from the official barangay facilities directory.
+   - When users ask where to drop off recyclables or find nearby waste facilities, provide actionable guidance based on verified local hubs.
 2. **Use approved local information for EcoBarangay questions**:
    - Use only the barangay collection schedules supplied in the current request. Do not invent dates, routes, services, policies, points, or redemption offers.
    - If local information is missing or uncertain, say so plainly and direct the resident to their barangay office.
@@ -359,50 +359,6 @@ CURRENT COMMUNITY CONTEXT:
     lastMessageText.includes('location');
 
   try {
-    // If query relates to places or locations, enable Google Maps grounding tool
-    if (isGeographicQuery) {
-      const config: any = {
-        systemInstruction: `${systemInstruction}${scheduleContext}`,
-        tools: [{ googleMaps: {} }],
-      };
-      if (typeof context?.userLat === 'number' && typeof context?.userLng === 'number') {
-        config.toolConfig = {
-          retrievalConfig: {
-            latLng: {
-              latitude: context.userLat,
-              longitude: context.userLng,
-            },
-          },
-        };
-      }
-
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: formattedContents,
-        config,
-      });
-
-      const groundedPlaces: GroundedPlace[] = [];
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (Array.isArray(chunks)) {
-        for (const chunk of chunks) {
-          if (chunk.maps?.uri && chunk.maps?.title) {
-            groundedPlaces.push({
-              title: chunk.maps.title,
-              uri: chunk.maps.uri,
-              placeId: chunk.maps.placeId,
-            });
-          }
-        }
-      }
-
-      return {
-        reply: response.text || 'Here is what I found for your location.',
-        groundedPlaces: groundedPlaces.length > 0 ? groundedPlaces : undefined,
-      };
-    }
-
-    // Standard conversational turn
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: formattedContents,
@@ -415,23 +371,9 @@ CURRENT COMMUNITY CONTEXT:
       reply: response.text || 'I am here and ready to answer any questions you have!',
     };
   } catch (error) {
-    console.error('[Gemini AI] Chat request failed, attempting fallback.', error);
-    try {
-      // Fallback without tools if tool grounding had an issue
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: formattedContents,
-        config: {
-          systemInstruction: `${systemInstruction}${scheduleContext}`,
-        },
-      });
-      return {
-        reply: response.text || 'I am ready to help with your environmental questions.',
-      };
-    } catch (fallbackError) {
-      return {
-        reply: 'Paumanhin, nagkaroon ng pansamantalang aberya sa AI Assistant. Maaari mo bang ulitin ang iyong tanong?',
-      };
-    }
+    console.error('[Gemini AI] Chat request failed.', error);
+    return {
+      reply: 'Paumanhin, nagkaroon ng pansamantalang aberya sa AI Assistant. Maaari mo bang ulitin ang iyong tanong?',
+    };
   }
 }

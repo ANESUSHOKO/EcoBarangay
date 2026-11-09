@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../../lib/api';
 import { User, Barangay } from '../../types';
 import { auth } from '../../lib/firebase';
+import { saveUserToFirestore } from '../../lib/firestoreService';
 import { compressImage } from '../../lib/compressImage';
 import {
   createUserWithEmailAndPassword,
@@ -192,6 +193,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         setError('This account uses the Barangay Office sign-in. Select Barangay Office to continue.');
         return;
       }
+      try {
+        await saveUserToFirestore(user);
+      } catch (fsErr) {
+        console.warn('Firestore user sync:', fsErr);
+      }
       onSuccess(user);
     } catch (err) {
       setError(getAuthErrorMessage(err));
@@ -223,6 +229,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           setError('This account does not have approved barangay official access yet.');
           return;
         }
+        try {
+          await saveUserToFirestore(user);
+        } catch (fsErr) {
+          console.warn('Firestore user sync:', fsErr);
+        }
         onSuccess(user);
       } catch {
         // New user: auto-register as resident with their Google profile details
@@ -235,6 +246,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           avatarUrl: fbUser.photoURL || undefined,
         });
         const newUser = regRes.user || (await api.getCurrentUser());
+        try {
+          await saveUserToFirestore(newUser);
+        } catch (fsErr) {
+          console.warn('Firestore user sync:', fsErr);
+        }
         onSuccess(newUser);
       }
     } catch (err) {
@@ -311,6 +327,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           avatarUrl: avatarUrl || undefined,
         });
         const user = result.user || await api.getCurrentUser();
+        try {
+          await saveUserToFirestore(user);
+        } catch (fsErr) {
+          console.warn('Firestore user sync:', fsErr);
+        }
         onSuccess(user);
       } catch (error) {
         await deleteUser(firebaseUser);

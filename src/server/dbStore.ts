@@ -28,7 +28,8 @@ import {
   TreeItem,
   EnvironmentalAlert,
   BarangayImprovement,
-  RankingSnapshot
+  RankingSnapshot,
+  PointAuditEntry
 } from '../types';
 import { canTransitionReportStatus, findPotentialDuplicateReports } from './reportWorkflow';
 import { updateRankingHistory } from './rankingHistory';
@@ -87,6 +88,7 @@ interface DBData {
   alerts?: EnvironmentalAlert[];
   improvements?: BarangayImprovement[];
   rankingSnapshots?: RankingSnapshot[];
+  pointAuditLogs?: PointAuditEntry[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -123,6 +125,7 @@ const FIRESTORE_COLLECTIONS: Array<{ name: keyof DBData; idField: 'id' | 'code' 
   { name: 'alerts', idField: 'id' },
   { name: 'improvements', idField: 'barangayId' },
   { name: 'rankingSnapshots', idField: 'id' },
+  { name: 'pointAuditLogs', idField: 'id' },
 ];
 
 type StoredRecord = Record<string, unknown>;
@@ -242,6 +245,7 @@ class DBStore {
       alerts: seed ? INITIAL_ALERTS : [],
       improvements: seed ? INITIAL_BARANGAY_IMPROVEMENTS : [],
       rankingSnapshots: [],
+      pointAuditLogs: [],
     })) as DBData;
   }
 
@@ -881,6 +885,17 @@ class DBStore {
         const reporter = this.getUserById(report.reporterId);
         if (reporter) {
           reporter.ecoPoints += 30;
+          this.recordPointAudit({
+            userId: reporter.id,
+            userEmail: reporter.email,
+            pointsDelta: 30,
+            resultingBalance: reporter.ecoPoints,
+            reason: `Resolved environmental report (${report.category} #${report.trackingNumber || report.id})`,
+            activityType: 'Report',
+            referenceId: report.id,
+            timestamp: now,
+            verifiedBy: officialId,
+          });
           this.addActivityLog({
             userId: reporter.id,
             type: 'Report',
@@ -1477,6 +1492,18 @@ class DBStore {
     activity.pointsEarned = status === 'Verified' ? pointsAwarded : 0;
     if (status === 'Verified') {
       resident.ecoPoints += pointsAwarded;
+      this.recordPointAudit({
+        userId: resident.id,
+        userEmail: resident.email,
+        pointsDelta: pointsAwarded,
+        resultingBalance: resident.ecoPoints,
+        reason: `${activity.type} verified: ${activity.title}`,
+        activityType: activity.type === 'Recycling' ? 'Recycling' : 'Education',
+        referenceId: activity.id,
+        evidenceUrl: activity.photoUrl,
+        timestamp: activity.verifiedAt,
+        verifiedBy: officialId,
+      });
       if (activity.type === 'Recycling') {
         resident.kgRecycled += activity.kgRecycled || 0;
         const barangay = this.getOrCreateBarangayById(resident.barangayId);
@@ -1512,6 +1539,23 @@ class DBStore {
     this.data.activityLogs.unshift(log);
     this.save();
     return log;
+  }
+
+  public getPointAuditLogs(userId?: string): PointAuditEntry[] {
+    const list = this.data.pointAuditLogs || [];
+    if (!userId) return [...list].reverse();
+    return list.filter(entry => entry.userId === userId).reverse();
+  }
+
+  public recordPointAudit(entry: Omit<PointAuditEntry, 'id'>): PointAuditEntry {
+    if (!this.data.pointAuditLogs) this.data.pointAuditLogs = [];
+    const newEntry: PointAuditEntry = {
+      ...entry,
+      id: `pnt-${randomUUID()}`,
+    };
+    this.data.pointAuditLogs.push(newEntry);
+    this.save();
+    return newEntry;
   }
 
   // Announcements

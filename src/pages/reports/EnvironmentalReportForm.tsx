@@ -10,6 +10,7 @@ import {
   PhotoValidationResult,
 } from '../../types';
 import { api } from '../../lib/api';
+import { saveReportToFirestore } from '../../lib/firestoreService';
 import { compressImage } from '../../lib/compressImage';
 import {
   AlertTriangle,
@@ -422,6 +423,11 @@ export const EnvironmentalReportForm: React.FC<EnvironmentalReportFormProps> = (
       };
 
       const created = await api.createReport(payload);
+      try {
+        await saveReportToFirestore(created);
+      } catch (fsErr) {
+        console.warn('Firestore report sync notice:', fsErr);
+      }
 
       setSuccessBanner(true);
       onReportCreated(created);
