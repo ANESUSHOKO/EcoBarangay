@@ -12,15 +12,17 @@ export function getReportResolutionMetrics(
   reports: EnvironmentalReport[],
   now = new Date(),
 ): ReportResolutionMetrics {
-  const createdTimes = reports
-    .map(report => Date.parse(report.createdAt))
+  const safeReports = Array.isArray(reports) ? reports : [];
+  const createdTimes = safeReports
+    .map(report => typeof report?.createdAt === 'string' ? Date.parse(report.createdAt) : NaN)
     .filter(timestamp => Number.isFinite(timestamp));
-  const resolutionHours = reports.flatMap(report => {
-    if (report.status !== 'Resolved') return [];
-    const resolutionChange = [...(report.statusHistory || [])]
+  const resolutionHours = safeReports.flatMap(report => {
+    if (!report || report.status !== 'Resolved') return [];
+    const statusHistory = Array.isArray(report.statusHistory) ? report.statusHistory : [];
+    const resolutionChange = [...statusHistory]
       .reverse()
-      .find(change => change.status === 'Resolved');
-    const createdAt = Date.parse(report.createdAt);
+      .find(change => change?.status === 'Resolved');
+    const createdAt = typeof report.createdAt === 'string' ? Date.parse(report.createdAt) : NaN;
     const resolvedAt = Date.parse(
       resolutionChange?.changedAt || report.resolvedAt || report.resolutionDate || '',
     );
@@ -33,7 +35,7 @@ export function getReportResolutionMetrics(
     : resolutionHours.length % 2 === 0
       ? (resolutionHours[middle - 1] + resolutionHours[middle]) / 2
       : resolutionHours[middle];
-  const reopenRequests = reports.filter(report => Boolean(report.reopenRequest)).length;
+  const reopenRequests = safeReports.filter(report => Boolean(report?.reopenRequest)).length;
 
   return {
     generatedAt: now.toISOString(),
@@ -47,6 +49,6 @@ export function getReportResolutionMetrics(
     },
     medianResolutionHours: medianHours === null ? null : Math.round(medianHours * 10) / 10,
     reopenRequests,
-    reopenRequestRate: reports.length ? Math.round((reopenRequests / reports.length) * 1000) / 10 : null,
+    reopenRequestRate: safeReports.length ? Math.round((reopenRequests / safeReports.length) * 1000) / 10 : null,
   };
 }

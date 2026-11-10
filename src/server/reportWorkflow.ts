@@ -10,34 +10,49 @@ const REPORT_TRANSITIONS: Record<ReportStatus, ReportStatus[]> = {
 };
 
 export function canTransitionReportStatus(
-  current: ReportStatus,
-  next: ReportStatus,
+  current: ReportStatus | undefined,
+  next: ReportStatus | undefined,
   reopenRequested = false,
 ): boolean {
-  return REPORT_TRANSITIONS[current].includes(next) ||
+  if (!current || !next) return false;
+  const transitions = REPORT_TRANSITIONS[current] ?? [];
+  return transitions.includes(next) ||
     (current === 'Resolved' && next === 'In Progress' && reopenRequested);
 }
 
 export function findPotentialDuplicateReports(
-  candidate: Pick<EnvironmentalReport, 'category' | 'barangayId' | 'lat' | 'lng'>,
+  candidate: Pick<EnvironmentalReport, 'category' | 'barangayId' | 'lat' | 'lng'> & { id?: string },
   reports: EnvironmentalReport[],
   now = new Date(),
   radiusMeters = 50,
   lookbackDays = 7,
 ): EnvironmentalReport[] {
+  if (!candidate || typeof candidate !== 'object' || !Array.isArray(reports)) return [];
+
+  const candidateLat = Number(candidate.lat);
+  const candidateLng = Number(candidate.lng);
+  if (!Number.isFinite(candidateLat) || !Number.isFinite(candidateLng)) return [];
+
   const cutoff = now.getTime() - lookbackDays * 24 * 60 * 60 * 1000;
 
   return reports.filter(report => {
+    if (!report || typeof report !== 'object') return false;
+    if (report.id && candidate.id && report.id === candidate.id) return false;
     if (
       report.barangayId !== candidate.barangayId ||
       report.category !== candidate.category ||
       report.status === 'Rejected' ||
+      typeof report.createdAt !== 'string' ||
       new Date(report.createdAt).getTime() < cutoff
     ) {
       return false;
     }
 
-    return getDistanceMeters(candidate.lat, candidate.lng, report.lat, report.lng) <= radiusMeters;
+    const reportLat = Number(report.lat);
+    const reportLng = Number(report.lng);
+    if (!Number.isFinite(reportLat) || !Number.isFinite(reportLng)) return false;
+
+    return getDistanceMeters(candidateLat, candidateLng, reportLat, reportLng) <= radiusMeters;
   });
 }
 

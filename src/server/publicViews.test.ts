@@ -9,6 +9,7 @@ test('event responses expose aggregate attendance and only the requesting reside
   assert.deepEqual(eventView(event).registeredUserIds, []);
   assert.equal(eventView(event).registeredCount, 2);
   assert.deepEqual(eventView(event, 'resident-a').registeredUserIds, ['resident-a']);
+  assert.deepEqual(eventView({ ...event, registeredUserIds: undefined } as any).registeredUserIds, []);
 });
 
 test('challenge responses expose aggregate participation without other resident IDs', () => {
@@ -23,4 +24,5 @@ test('challenge responses expose aggregate participation without other resident 
   assert.equal(challengeView(challenge).joinedCount, 2);
   assert.equal(challengeView(challenge).submissionCount, 1);
   assert.deepEqual(challengeView(challenge, 'resident-b').joinedUserIds, ['resident-b']);
+  assert.deepEqual(challengeView({ ...challenge, joinedUserIds: undefined, completedUserIds: undefined } as any).joinedUserIds, []);
 });

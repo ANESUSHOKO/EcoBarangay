@@ -15,4 +15,5 @@ test('only approved Barangay Officials have platform-wide capabilities', () => {
 test('residents do not have platform-wide capabilities', () => {
   assert.equal(hasSystemAdminCapabilities({ role: 'RESIDENT' }), false);
   assert.equal(hasSystemAdminCapabilities(undefined), false);
+  assert.equal(hasSystemAdminCapabilities({} as any), false);
 });
