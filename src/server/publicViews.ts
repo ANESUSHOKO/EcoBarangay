@@ -1,19 +1,24 @@
 import { Challenge, Event } from '../types';
 
 export function eventView(event: Event, userId?: string): Event {
+  const registeredUserIds = Array.isArray(event?.registeredUserIds) ? event.registeredUserIds : [];
+
   return {
     ...event,
-    registeredCount: event.registeredUserIds.length,
-    registeredUserIds: userId && event.registeredUserIds.includes(userId) ? [userId] : [],
+    registeredCount: registeredUserIds.length,
+    registeredUserIds: userId && registeredUserIds.includes(userId) ? [userId] : [],
   };
 }
 
 export function challengeView(challenge: Challenge, userId?: string): Challenge {
+  const joinedUserIds = Array.isArray(challenge?.joinedUserIds) ? challenge.joinedUserIds : [];
+  const completedUserIds = Array.isArray(challenge?.completedUserIds) ? challenge.completedUserIds : [];
+
   return {
     ...challenge,
-    joinedCount: challenge.joinedUserIds.length,
-    submissionCount: challenge.completedUserIds.length,
-    joinedUserIds: userId && challenge.joinedUserIds.includes(userId) ? [userId] : [],
-    completedUserIds: userId && challenge.completedUserIds.includes(userId) ? [userId] : [],
+    joinedCount: joinedUserIds.length,
+    submissionCount: completedUserIds.length,
+    joinedUserIds: userId && joinedUserIds.includes(userId) ? [userId] : [],
+    completedUserIds: userId && completedUserIds.includes(userId) ? [userId] : [],
   };
 }

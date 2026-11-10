@@ -1,3 +1,7 @@
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export function isBootstrapSystemAdmin(
   email: string | undefined,
   uid: string | undefined,
@@ -5,10 +9,11 @@ export function isBootstrapSystemAdmin(
   configuredUid: string | undefined,
   allowEmailOnly = false,
 ): boolean {
-  const normalizedEmail = email?.trim().toLowerCase();
-  const normalizedConfiguredEmail = configuredEmail?.trim().toLowerCase();
-  const normalizedUid = uid?.trim();
-  const normalizedConfiguredUid = configuredUid?.trim();
+  const normalizedEmail = normalizeText(email).toLowerCase();
+  const normalizedConfiguredEmail = normalizeText(configuredEmail).toLowerCase();
+  const normalizedUid = normalizeText(uid);
+  const normalizedConfiguredUid = normalizeText(configuredUid);
+
   if (!normalizedEmail || !normalizedConfiguredEmail || normalizedEmail !== normalizedConfiguredEmail) return false;
   if (allowEmailOnly) return true;
   return Boolean(normalizedUid && normalizedConfiguredUid && normalizedUid === normalizedConfiguredUid);

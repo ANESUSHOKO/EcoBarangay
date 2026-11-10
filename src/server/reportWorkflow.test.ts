@@ -30,6 +30,7 @@ test('report status transitions follow the operational lifecycle', () => {
   assert.equal(canTransitionReportStatus('Resolved', 'In Progress'), false);
   assert.equal(canTransitionReportStatus('Resolved', 'In Progress', true), true);
   assert.equal(canTransitionReportStatus('Rejected', 'In Progress', true), false);
+  assert.equal(canTransitionReportStatus(undefined, 'Under Review'), false);
 });
 
 test('duplicate detection is a non-blocking same-category, same-barangay, 50m/7-day check', () => {
@@ -47,4 +48,8 @@ test('duplicate detection is a non-blocking same-category, same-barangay, 50m/7-
   );
 
   assert.deepEqual(duplicates.map(item => item.id), ['report-1']);
+  assert.deepEqual(
+    findPotentialDuplicateReports({ id: 'report-1', category: 'Illegal Dumping', barangayId: 'brgy-1', lat: 14.5995, lng: 120.9842 }, [nearby, report({ id: 'report-1' })], now),
+    [],
+  );
 });
